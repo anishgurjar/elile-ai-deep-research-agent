@@ -1,0 +1,50 @@
+{
+  "$schema": "https://nx.dev/reference/nx-json",
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": [
+      "default",
+      "!{projectRoot}/**/*.spec.ts",
+      "!{projectRoot}/**/*.test.ts",
+      "!{projectRoot}/**/*.spec.tsx",
+      "!{projectRoot}/**/*.test.tsx",
+      "!{projectRoot}/**/test/**",
+      "!{projectRoot}/**/tests/**",
+      "!{projectRoot}/**/*.md"
+    ],
+    "typescript": ["{projectRoot}/**/*.ts", "{projectRoot}/**/*.tsx"],
+    "python": ["{projectRoot}/**/*.py", "{projectRoot}/pyproject.toml"]
+  },
+  "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"],
+      "cache": true
+    },
+    "@nx/rollup:rollup": {
+      "options": {
+        "format": ["esm", "cjs"],
+        "compiler": "tsc",
+        "generateExportsField": true,
+        "external": "all"
+      },
+      "outputs": ["{options.outputPath}"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^default"],
+      "cache": true
+    },
+    "lint": {
+      "inputs": ["default", "^default"],
+      "cache": true
+    },
+    "format": {
+      "inputs": ["default"],
+      "cache": false
+    },
+    "dev": { "cache": false }
+  },
+  "plugins": ["@nxlv/python"],
+  "defaultBase": "main"
+}

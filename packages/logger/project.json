@@ -1,0 +1,24 @@
+{
+  "name": "logger",
+  "projectType": "library",
+  "tags": ["type:lib", "lang:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/rollup:rollup",
+      "options": {
+        "main": "packages/logger/src/index.ts",
+        "additionalEntryPoints": ["packages/logger/src/testing.ts"],
+        "outputPath": "packages/logger/dist",
+        "tsConfig": "packages/logger/tsconfig.json"
+      }
+    },
+    "test": {
+      "command": "vitest run",
+      "options": { "cwd": "packages/logger" },
+      "outputs": [
+        "{workspaceRoot}/reports/{projectRoot}/unittests",
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ]
+    }
+  }
+}

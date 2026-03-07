@@ -1,0 +1,47 @@
+{
+  "name": "assistant-app",
+  "projectType": "application",
+  "tags": ["type:app", "lang:typescript"],
+  "targets": {
+    "dev": {
+      "command": "next dev --turbopack --port ${PORT:-3000}",
+      "options": { "cwd": "apps/assistant-app" }
+    },
+    "build": {
+      "outputs": ["{projectRoot}/.next"]
+    },
+    "start": {
+      "command": "next start",
+      "options": { "cwd": "apps/assistant-app" }
+    },
+    "test": {
+      "command": "vitest run",
+      "options": { "cwd": "apps/assistant-app" },
+      "outputs": [
+        "{workspaceRoot}/reports/{projectRoot}/unittests",
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ]
+    },
+    "test:ci": {
+      "command": "vitest run",
+      "options": { "cwd": "apps/assistant-app" },
+      "outputs": [
+        "{workspaceRoot}/reports/{projectRoot}/unittests",
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ]
+    },
+    "test:unit": {
+      "command": "vitest run --config vitest.unit.config.ts",
+      "options": { "cwd": "apps/assistant-app" }
+    },
+    "test:int": {
+      "command": "vitest run --config vitest.int.config.ts",
+      "options": { "cwd": "apps/assistant-app" }
+    },
+    "lint": {
+      "command": "eslint .",
+      "options": { "cwd": "apps/assistant-app" }
+    }
+  },
+  "implicitDependencies": []
+}

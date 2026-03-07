@@ -1,0 +1,4 @@
+services:
+  # CI override: disable local-only services
+  minio-init:
+    profiles: ["local"]

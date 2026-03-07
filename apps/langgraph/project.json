@@ -1,0 +1,53 @@
+{
+  "name": "langgraph",
+  "projectType": "application",
+  "tags": ["type:app", "lang:typescript"],
+  "targets": {
+    "dev": {
+      "command": "npx @langchain/langgraph-cli dev --port ${ELILEAI_LANGGRAPH_PORT:-2024}",
+      "options": { "cwd": "apps/langgraph" }
+    },
+    "build": {
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "test": {
+      "command": "vitest run",
+      "options": { "cwd": "apps/langgraph" },
+      "outputs": [
+        "{workspaceRoot}/reports/{projectRoot}/unittests",
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ]
+    },
+    "test:ci": {
+      "command": "vitest run",
+      "options": { "cwd": "apps/langgraph" },
+      "outputs": [
+        "{workspaceRoot}/reports/{projectRoot}/unittests",
+        "{workspaceRoot}/coverage/{projectRoot}"
+      ]
+    },
+    "cloud-experiments:ci": {
+      "command": "vitest run --config vitest.cloud-experiments.config.ts",
+      "options": { "cwd": "apps/langgraph" },
+      "dependsOn": ["^build"]
+    },
+    "test:unit": {
+      "command": "vitest run --config vitest.unit.config.ts",
+      "options": { "cwd": "apps/langgraph" }
+    },
+    "test:int": {
+      "command": "vitest run --config vitest.int.config.ts",
+      "options": { "cwd": "apps/langgraph" }
+    },
+    "cloud-experiments": {
+      "command": "vitest run --config vitest.cloud-experiments.config.ts",
+      "options": { "cwd": "apps/langgraph" },
+      "dependsOn": ["^build"]
+    },
+    "lint": {
+      "command": "eslint .",
+      "options": { "cwd": "apps/langgraph" }
+    }
+  },
+  "implicitDependencies": []
+}

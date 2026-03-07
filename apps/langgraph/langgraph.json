@@ -1,0 +1,14 @@
+{
+  "node_version": "20",
+  "dockerfile_lines": [
+    "ENV SKIP_PREINSTALL=true"
+  ],
+  "dependencies": ["."],
+  "graphs": {
+    "elileai-orchestrator": "./src/agents/orchestrator/graph/graph.ts:graph"
+  },
+  "env": "../../.env",
+  "auth": {
+    "path": "./src/auth.ts:auth"
+  }
+}

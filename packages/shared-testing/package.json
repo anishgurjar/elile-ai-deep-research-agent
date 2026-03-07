@@ -1,0 +1,37 @@
+{
+  "name": "@elileai/shared-testing",
+  "private": true,
+  "main": "./dist/index.cjs.js",
+  "module": "./dist/index.esm.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.cjs.js"
+    },
+    "./polly": {
+      "types": "./dist/polly.d.ts",
+      "import": "./dist/polly.esm.js",
+      "require": "./dist/polly.cjs.js"
+    },
+    "./polly-recording": {
+      "types": "./dist/polly-recording.d.ts",
+      "import": "./dist/polly-recording.esm.js"
+    },
+    "./clerk-test-token": {
+      "types": "./dist/clerk-test-token.d.ts",
+      "import": "./dist/clerk-test-token.esm.js",
+      "require": "./dist/clerk-test-token.cjs.js"
+    }
+  },
+  "dependencies": {
+    "@pollyjs/adapter-fetch": "^6.0.7",
+    "@pollyjs/core": "^6.0.6",
+    "@pollyjs/persister-fs": "^6.0.6"
+  },
+  "peerDependencies": {
+    "dotenv": "*",
+    "vitest": "*"
+  }
+}

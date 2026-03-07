@@ -1,0 +1,27 @@
+name: ${COMPOSE_PROJECT_NAME:-elileai}
+
+services:
+  # ===================
+  # Unified Postgres Database
+  # ===================
+  postgres:
+    image: postgres:16
+    container_name: ${COMPOSE_PROJECT_NAME:-elileai}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: elileai
+      POSTGRES_USER: elileai
+      POSTGRES_PASSWORD: elileai_dev
+    ports:
+      - "${ELILEAI_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elileai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

@@ -1,0 +1,84 @@
+# Dependencies (copied during build)
+node_modules/
+.venv/
+
+# Build outputs (rebuilt in container)
+.next/
+.turbo/
+.nx/
+dist/
+*.js.map
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# Python caches
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.eggs/
+.mypy_cache/
+.ruff_cache/
+
+# Test/Coverage
+htmlcov/
+coverage/
+reports/
+.coverage
+.coverage.*
+.pytest_cache/
+*.cover
+*.py,cover
+.hypothesis/
+
+# Environment files (injected at runtime)
+.env
+.env.local
+.env.test
+.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test artifacts
+snapshots/
+**/tests/
+**/*.test.ts
+**/*.spec.ts
+**/*.test.tsx
+**/*.spec.tsx
+
+# Pipeline data files
+pipelines/question-ingestion/input_files/
+pipelines/question-ingestion/output_files/
+
+# CI config
+.rwx/
+
+# Documentation
+*.md
+docs/
+
+# Docker files (avoid recursive inclusion)
+**/Dockerfile*
+docker-compose*.yml

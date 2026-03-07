@@ -1,0 +1,48 @@
+{
+  "name": "infrastructure",
+  "projectType": "application",
+  "tags": ["type:infra"],
+  "targets": {
+    "up": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "bash scripts/infra-up.sh",
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "rebuild": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker compose build",
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "down": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker compose down",
+        "cwd": "."
+      },
+      "cache": false
+    },
+    "wait-for-db": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "until docker exec ${COMPOSE_PROJECT_NAME:-elileai}-postgres pg_isready -U elileai; do sleep 1; done",
+        "cwd": "."
+      },
+      "dependsOn": ["up"],
+      "cache": false
+    },
+    "logs": {
+      "executor": "@nxlv/python:run-commands",
+      "options": {
+        "command": "docker compose logs -f",
+        "cwd": "."
+      },
+      "cache": false
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "shared-testing",
+  "projectType": "library",
+  "tags": ["type:lib", "lang:typescript"],
+  "targets": {
+    "build": {
+      "executor": "@nx/rollup:rollup",
+      "options": {
+        "main": "packages/shared-testing/src/index.ts",
+        "additionalEntryPoints": [
+          "packages/shared-testing/src/polly.ts",
+          "packages/shared-testing/src/polly-recording.ts",
+          "packages/shared-testing/src/clerk-test-token.ts"
+        ],
+        "outputPath": "packages/shared-testing/dist",
+        "tsConfig": "packages/shared-testing/tsconfig.json"
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ES2021",
+    "lib": ["ES2021", "ES2022.Object", "DOM"],
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "useDefineForClassFields": true,
+    "strictPropertyInitialization": false,
+    "allowJs": true,
+    "strict": true,
+    "strictFunctionTypes": false,
+    "outDir": "dist",
+    "types": ["node"],
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": false
+  },
+  "include": ["**/*.ts", "**/*.js"],
+  "exclude": ["node_modules", "dist"]
+}

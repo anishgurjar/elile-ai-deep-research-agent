@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+.turbo/
+.nx/
+dist/
+*.js.map
+*.tsbuildinfo
+
+# TypeSpec generated
+packages/schema/generated/
+
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+*.egg
+.eggs/
+.mypy_cache/
+.ruff_cache/
+
+# Test/Coverage
+htmlcov/
+coverage/
+reports/
+.coverage
+.coverage.*
+.pytest_cache/
+*.cover
+*.py,cover
+.hypothesis/
+reports/
+
+# Environment files
+.env
+.env.local
+!.env.ci
+!.env.example
+!.env.test
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test artifacts
+snapshots/
+
+# Pipeline data files (large CSVs, input/output)
+pipelines/question-ingestion/input_files/
+pipelines/question-ingestion/output_files/
+!pipelines/question-ingestion/tests/fixtures/*.csv
