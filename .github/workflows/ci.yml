@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Lint / Build / Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start background services
+        run: |
+          cp .env.ci .env
+          docker compose up -d --wait
+        env:
+          COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+
+      - name: Build shared libraries
+        run: npx nx run-many --target=build --projects=tag:type:lib
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build apps
+        run: npx nx run-many --target=build --projects=tag:type:app
+
+      - name: Test
+        run: npm run test
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
+        env:
+          COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
