@@ -12,9 +12,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@assistant-ui/react": "^0.12.10",
-    "@assistant-ui/react-langgraph": "^0.12.5",
-    "@assistant-ui/react-markdown": "^0.12.3",
+    "@assistant-ui/react": "^0.12.15",
+    "@assistant-ui/react-langgraph": "^0.13.3",
+    "@assistant-ui/react-markdown": "^0.12.5",
     "@clerk/nextjs": "^7.0.1",
     "@elileai/logger": "*",
     "@langchain/langgraph-sdk": "^0.0.84",

@@ -1,4 +1,3 @@
-//TODO: Implement after reasoning is fixed in Engine
 "use client";
 
 import { BrainIcon, ChevronDownIcon } from "lucide-react";

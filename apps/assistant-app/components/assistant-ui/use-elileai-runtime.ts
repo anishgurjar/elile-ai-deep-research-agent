@@ -14,6 +14,61 @@ function generateId() {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+export type MinimalAiMessage = {
+  type: "ai";
+  id?: string;
+  content: unknown;
+  tool_calls?: Array<Record<string, unknown>>;
+  additional_kwargs?: Record<string, unknown>;
+};
+
+export function mergeStreamedAiMessage({
+  previous,
+  incoming,
+  forcedId,
+}: {
+  previous: MinimalAiMessage;
+  incoming: MinimalAiMessage;
+  forcedId: string;
+}): MinimalAiMessage {
+  const existingToolCalls = (previous.tool_calls ?? []) as Array<
+    Record<string, unknown>
+  >;
+  const incomingToolCalls = (incoming.tool_calls ?? []) as Array<
+    Record<string, unknown>
+  >;
+
+  const mergedToolCalls = [...existingToolCalls];
+  for (const newTc of incomingToolCalls) {
+    const id = newTc?.["id"];
+    if (!id) continue;
+    const idx = mergedToolCalls.findIndex((tc) => tc?.["id"] === id);
+    if (idx >= 0) mergedToolCalls[idx] = newTc;
+    else mergedToolCalls.push(newTc);
+  }
+
+  const additionalKwargs = incoming.additional_kwargs
+    ? { ...incoming.additional_kwargs }
+    : undefined;
+
+  if (
+    additionalKwargs?.reasoning &&
+    typeof additionalKwargs.reasoning === "object"
+  ) {
+    const r = additionalKwargs.reasoning as Record<string, unknown>;
+    if (!Array.isArray(r.summary)) {
+      r.summary = [];
+    }
+  }
+
+  return {
+    ...incoming,
+    id: forcedId,
+    tool_calls: mergedToolCalls,
+    additional_kwargs: additionalKwargs,
+  };
+}
+
 /**
  * Custom runtime hook that integrates ELILEAI backend with Assistant UI
  * Handles message loading, streaming, and state management
@@ -161,82 +216,24 @@ export function useElileaiExternalRuntime() {
             const serialized = Array.isArray(data)
               ? (data[0] as Record<string, unknown> | undefined)
               : undefined;
-            const content = serialized?.["content"] as unknown as
-              | Array<Record<string, unknown>>
-              | undefined;
             const type = serialized?.["type"] as string | undefined;
-            const toolCalls = serialized?.["tool_calls"] as
-              | Array<Record<string, unknown>>
-              | undefined;
 
-            if (type === "ai") {
-              let fullText = "";
-              const toolCallsFromMessage: Array<Record<string, unknown>> = [];
-
-              if (typeof content === "string") {
-                fullText = content;
-              } else if (Array.isArray(content)) {
-                for (const c of content) {
-                  const ctype = c?.["type"];
-                  const ctext = c?.["text"];
-
-                  if (ctype === "text" && typeof ctext === "string") {
-                    fullText = ctext;
-                  }
-                }
-              }
-
-              if (
-                toolCalls &&
-                Array.isArray(toolCalls) &&
-                toolCalls.length > 0
-              ) {
-                for (const tc of toolCalls) {
-                  toolCallsFromMessage.push({
-                    type: "tool-call",
-                    toolCallId: tc?.["id"] as string,
-                    toolName: tc?.["name"] as string,
-                    args: tc?.["args"] as Record<string, unknown>,
-                  });
-                }
-              }
-
+            if (type === "ai" && serialized) {
               setLcMessages((prev) =>
                 prev.map((m) => {
                   const msgWithId = m as Record<string, unknown>;
-                  const msgId = msgWithId.id;
-                  if (msgId === assistantMessageId) {
-                    const existingToolCalls = (msgWithId.tool_calls as
-                      | Array<Record<string, unknown>>
-                      | undefined) ?? [];
+                  if (msgWithId.id !== assistantMessageId) return m;
 
-                    // Merge tool calls by ID to prevent count from decreasing
-                    // during streaming updates
-                    const mergedToolCalls = [...existingToolCalls];
-                    if (toolCalls && toolCalls.length > 0) {
-                      for (const newTc of toolCalls) {
-                        const existingIndex = mergedToolCalls.findIndex(
-                          (tc) => tc.id === newTc.id
-                        );
-                        if (existingIndex >= 0) {
-                          // Update existing tool call
-                          mergedToolCalls[existingIndex] = newTc;
-                        } else {
-                          // Add new tool call
-                          mergedToolCalls.push(newTc);
-                        }
-                      }
-                    }
+                  const merged = mergeStreamedAiMessage({
+                    previous: msgWithId as unknown as MinimalAiMessage,
+                    incoming: serialized as unknown as MinimalAiMessage,
+                    forcedId: assistantMessageId,
+                  });
 
-                    return {
-                      type: "ai",
-                      content: fullText,
-                      tool_calls: mergedToolCalls,
-                      id: assistantMessageId,
-                      _updated: Date.now(),
-                    } as unknown as LangChainMessage;
-                  }
-                  return m;
+                  return {
+                    ...merged,
+                    _updated: Date.now(),
+                  } as unknown as LangChainMessage;
                 }),
               );
             }

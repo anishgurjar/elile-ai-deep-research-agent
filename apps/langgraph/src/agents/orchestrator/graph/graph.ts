@@ -1,10 +1,10 @@
 import { createAgent } from "langchain";
-import { ChatOpenAI } from "@langchain/openai";
 import { prompt } from "../prompt";
 import { skillMiddleware } from "../skills/middleware";
+import { createOrchestratorModel } from "./graph.model";
 
 const agent = createAgent({
-  model: new ChatOpenAI({ model: "gpt-5.2" }),
+  model: createOrchestratorModel(),
   tools: [],
   systemPrompt: prompt,
   middleware: [skillMiddleware],
