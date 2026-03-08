@@ -101,4 +101,51 @@ describe("chatApi route-boundary behavior", () => {
       data: [{ type: "ai", content: "hi" }],
     });
   });
+
+  it("sendMessage preserves additional_kwargs.reasoning in streamed events", async () => {
+    const aiMsg = {
+      type: "ai",
+      id: "msg-1",
+      content: "The answer.",
+      additional_kwargs: {
+        reasoning: {
+          type: "reasoning",
+          summary: [{ type: "summary_text", text: "I thought about it..." }],
+        },
+      },
+    };
+
+    const streamBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            `event: messages/partial\ndata: ${JSON.stringify([aiMsg])}\n\n`,
+          ),
+        );
+        controller.close();
+      },
+    });
+
+    mockFetch.mockResolvedValue(
+      new Response(streamBody, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    );
+
+    const stream = await sendMessage({
+      threadId: THREAD_ID,
+      messages: [{ type: "human", content: "why?" }] as never,
+    });
+    const first = await stream.next();
+
+    const data = first.value as { event: string; data: unknown[] };
+    expect(data.event).toBe("messages/partial");
+
+    const parsed = data.data[0] as Record<string, unknown>;
+    expect(parsed.additional_kwargs).toBeDefined();
+    expect(
+      (parsed.additional_kwargs as Record<string, unknown>).reasoning,
+    ).toBeDefined();
+  });
 });
