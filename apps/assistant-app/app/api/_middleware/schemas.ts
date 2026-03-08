@@ -27,3 +27,7 @@ export const runBody = z.object({
   stream_mode: z.array(z.enum(ALLOWED_STREAM_MODES)).optional(),
   config: z.record(z.string(), z.unknown()).optional(),
 });
+
+export const cancelRunBody = z.object({
+  run_id: z.string().uuid("run_id must be a valid UUID"),
+});

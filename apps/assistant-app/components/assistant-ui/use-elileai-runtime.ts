@@ -7,7 +7,7 @@ import {
   convertLangChainMessages,
   type LangChainMessage,
 } from "@assistant-ui/react-langgraph";
-import { getThreadState, sendMessage } from "@/lib/chatApi";
+import { getThreadState, sendMessage, cancelRun } from "@/lib/chatApi";
 import { getAppendText } from "./elileai-adapter";
 
 function generateId() {
@@ -80,6 +80,8 @@ export function useElileaiExternalRuntime() {
   const [isRunning, setIsRunning] = useState(false);
   const externalId = aui.threadListItem().getState().externalId;
   const isStreamingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const runIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!externalId || isStreamingRef.current) return;
@@ -201,16 +203,28 @@ export function useElileaiExternalRuntime() {
       setIsRunning(true);
       isStreamingRef.current = true;
 
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      runIdRef.current = null;
+
       try {
         const stream = await sendMessage({
           threadId: currentExternalId!,
           messages: [{ type: "human", content: humanText }],
+          signal: abortController.signal,
         });
 
         for await (const part of stream as AsyncGenerator<{
           event: string;
           data: unknown;
         }>) {
+          if (part.event === "metadata") {
+            const meta = part.data as Record<string, unknown> | null;
+            if (meta?.run_id && typeof meta.run_id === "string") {
+              runIdRef.current = meta.run_id;
+            }
+          }
+
           if (part.event === "messages/partial" && isStreamingRef.current) {
             const data = part.data as unknown;
             const serialized = Array.isArray(data)
@@ -251,6 +265,14 @@ export function useElileaiExternalRuntime() {
           }
         }
       } catch (error) {
+        const isAbort =
+          typeof error === "object" &&
+          error !== null &&
+          "name" in error &&
+          (error as { name: string }).name === "AbortError";
+        if (isAbort) {
+          return;
+        }
         console.error("[useElileaiRuntime] Error during message streaming:", error);
         setLcMessages((prev) =>
           prev.filter((m) => {
@@ -261,7 +283,26 @@ export function useElileaiExternalRuntime() {
       } finally {
         setIsRunning(false);
         isStreamingRef.current = false;
+        abortControllerRef.current = null;
+        runIdRef.current = null;
       }
+    },
+    onCancel: async () => {
+      isStreamingRef.current = false;
+
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+
+      const threadId = aui.threadListItem().getState().externalId;
+      const runId = runIdRef.current;
+      if (threadId && runId) {
+        try {
+          await cancelRun({ threadId, runId });
+        } catch (e) {
+          console.error("[useElileaiRuntime] Failed to cancel run:", e);
+        }
+      }
+      runIdRef.current = null;
     },
   });
 

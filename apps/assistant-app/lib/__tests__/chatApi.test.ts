@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createThread, getThreadState, searchThreads, sendMessage } from "../chatApi";
+import { createThread, getThreadState, searchThreads, sendMessage, cancelRun } from "../chatApi";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -102,6 +102,36 @@ describe("chatApi route-boundary behavior", () => {
     });
   });
 
+  it("sendMessage forwards AbortSignal to fetch", async () => {
+    const streamBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            'event: messages/partial\ndata: [{"type":"ai","content":"hi"}]\n\n',
+          ),
+        );
+        controller.close();
+      },
+    });
+
+    mockFetch.mockResolvedValue(
+      new Response(streamBody, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    );
+
+    const controller = new AbortController();
+    await sendMessage({
+      threadId: THREAD_ID,
+      messages: [{ type: "human", content: "hello" }] as never,
+      signal: controller.signal,
+    });
+
+    const fetchCall = mockFetch.mock.calls[0];
+    expect(fetchCall[1].signal).toBe(controller.signal);
+  });
+
   it("sendMessage preserves additional_kwargs.reasoning in streamed events", async () => {
     const aiMsg = {
       type: "ai",
@@ -147,5 +177,23 @@ describe("chatApi route-boundary behavior", () => {
     expect(
       (parsed.additional_kwargs as Record<string, unknown>).reasoning,
     ).toBeDefined();
+  });
+
+  it("cancelRun posts to the cancel route", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+
+    const runId = "660e8400-e29b-41d4-a716-446655440001";
+    await cancelRun({ threadId: THREAD_ID, runId });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/threads/${THREAD_ID}/runs/cancel`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run_id: runId }),
+      },
+    );
   });
 });

@@ -90,6 +90,7 @@ type MessageParams = {
   threadId: string;
   messages?: LangChainMessage[];
   command?: LangGraphCommand | undefined;
+  signal?: AbortSignal;
 };
 
 export class ChatMessagesClient {
@@ -112,6 +113,7 @@ export class ChatMessagesClient {
         stream_mode: STREAM_MODES,
         config: {},
       }),
+      signal: params.signal,
     });
 
     await assertOk(res, "sendMessage");
@@ -139,9 +141,20 @@ export class ChatMessagesClient {
     await assertOk(res, "sendMessageAndWait");
     return res.json();
   }
+
+  async cancelRun(params: { threadId: string; runId: string }): Promise<void> {
+    const res = await fetch(`/api/threads/${params.threadId}/runs/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id: params.runId }),
+    });
+
+    await assertOk(res, "cancelRun");
+  }
 }
 
 const defaultClient = new ChatMessagesClient();
 
 export const sendMessage = defaultClient.sendMessage.bind(defaultClient);
 export const sendMessageAndWait = defaultClient.sendMessageAndWait.bind(defaultClient);
+export const cancelRun = defaultClient.cancelRun.bind(defaultClient);

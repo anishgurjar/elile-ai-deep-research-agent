@@ -1,4 +1,4 @@
-export { sendMessage, sendMessageAndWait } from "./chat-api/messages";
+export { sendMessage, sendMessageAndWait, cancelRun } from "./chat-api/messages";
 export {
   createThread,
   getThread,
