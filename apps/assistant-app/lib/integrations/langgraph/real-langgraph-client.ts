@@ -68,4 +68,8 @@ export class RealLangGraphClient implements LangGraphClient {
       config: body.config,
     });
   }
+
+  cancelRun(threadId: string, runId: string): Promise<void> {
+    return this.client.runs.cancel(threadId, runId);
+  }
 }

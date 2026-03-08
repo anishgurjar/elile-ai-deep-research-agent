@@ -36,4 +36,5 @@ export interface LangGraphClient {
   getThreadState(threadId: string): Promise<ThreadState>;
   streamRun(threadId: string, body: RunRequestBody): Promise<AsyncGenerator<StreamEvent>>;
   waitRun(threadId: string, body: RunRequestBody): Promise<ThreadState["values"]>;
+  cancelRun(threadId: string, runId: string): Promise<void>;
 }
