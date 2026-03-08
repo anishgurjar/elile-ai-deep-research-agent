@@ -1,49 +1,41 @@
 import { tool } from "langchain";
 import { z } from "zod";
 
-const ResearchTopicsInputSchema = z.object({
-  topics: z
-    .array(z.string().min(1))
+const ResearchAgentInputSchema = z.object({
+  instructions: z
+    .string()
     .min(1)
-    .describe("Research topics (each will be researched independently)"),
+    .describe("Instructions from the orchestrator (Claude) to the research subagent"),
 });
 
-export type RunResearchFn = (topic: string) => Promise<string>;
+export type RunResearchAgentFn = (instructions: string) => Promise<string>;
 
-export function createResearchTopicsTool(options: { runResearch: RunResearchFn }) {
-  const { runResearch } = options;
+export function createResearchAgentTool(options: {
+  runResearchAgent: RunResearchAgentFn;
+}) {
+  const { runResearchAgent } = options;
 
   return tool(
-    async (input: z.infer<typeof ResearchTopicsInputSchema>) => {
-      const maxTopics = 3;
-      const topics = input.topics.slice(0, maxTopics);
-      const truncatedCount = input.topics.length - topics.length;
-
-      const results = await Promise.all(
-        topics.map(async (topic) => ({
-          topic,
-          answer: await runResearch(topic),
-        })),
-      );
-
-      const parts: string[] = [];
-      if (truncatedCount > 0) {
-        parts.push(
-          `Note: limited to max ${maxTopics} topics per call (skipped ${truncatedCount}).`,
-        );
-      }
-
-      for (const r of results) {
-        parts.push(`\n## ${r.topic}\n\n${r.answer}`.trim());
-      }
-
-      return parts.join("\n\n").trim();
+    async (input: z.infer<typeof ResearchAgentInputSchema>) => {
+      const output = await runResearchAgent(input.instructions);
+      // Return the subagent's output as tool content so the supervisor (Claude)
+      // can use it in its context window. The UI renders the output from the
+      // artifact in the separate subagent panel.
+      return [
+        output,
+        {
+          tool: "research_agent",
+          instructions: input.instructions,
+          output,
+        },
+      ] as const;
     },
     {
-      name: "research_topics",
+      name: "research_agent",
       description:
-        "Run web research on up to 3 independent topics in parallel (fan-out workers) and return consolidated findings.",
-      schema: ResearchTopicsInputSchema,
+        "Run a web-enabled research subagent with the provided instructions and return its final output.",
+      schema: ResearchAgentInputSchema,
+      responseFormat: "content_and_artifact",
     },
   );
 }

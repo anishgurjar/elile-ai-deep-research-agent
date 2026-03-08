@@ -1,37 +1,32 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { createResearchTopicsTool } from "./research-tools";
+import { createResearchAgentTool } from "./research-tools";
 
 describe("research-tools", () => {
-  test("creates a research_topics tool", () => {
-    const tool = createResearchTopicsTool({
-      runResearch: async () => "ok",
+  test("creates a research_agent tool", () => {
+    const tool = createResearchAgentTool({
+      runResearchAgent: async () => "ok",
     });
-    expect(tool.name).toBe("research_topics");
+    expect(tool.name).toBe("research_agent");
   });
 
-  test("runs up to 3 topics and returns combined output", async () => {
-    const runResearch = vi.fn(async (topic: string) => `answer:${topic}`);
+  test("forwards Claude instructions and returns subagent output", async () => {
+    const runResearchAgent = vi.fn(
+      async (instructions: string) => `done:${instructions}`,
+    );
 
-    const tool = createResearchTopicsTool({ runResearch });
+    const tool = createResearchAgentTool({ runResearchAgent });
 
     const result = await tool.invoke({
-      topics: ["t1", "t2", "t3", "t4"],
+      instructions: "research X and return sources",
     });
 
-    expect(runResearch).toHaveBeenCalledTimes(3);
-    expect(runResearch).toHaveBeenNthCalledWith(1, "t1");
-    expect(runResearch).toHaveBeenNthCalledWith(2, "t2");
-    expect(runResearch).toHaveBeenNthCalledWith(3, "t3");
+    expect(runResearchAgent).toHaveBeenCalledTimes(1);
+    expect(runResearchAgent).toHaveBeenCalledWith("research X and return sources");
 
-    expect(result).toContain("t1");
-    expect(result).toContain("answer:t1");
-    expect(result).toContain("t2");
-    expect(result).toContain("answer:t2");
-    expect(result).toContain("t3");
-    expect(result).toContain("answer:t3");
-    expect(result).not.toContain("t4");
-    expect(result).toMatch(/max 3/i);
+    // Tool content is the subagent output (so the supervisor sees it).
+    // Note: when invoked directly, the tool returns just content.
+    expect(result).toBe("done:research X and return sources");
   });
 });
 

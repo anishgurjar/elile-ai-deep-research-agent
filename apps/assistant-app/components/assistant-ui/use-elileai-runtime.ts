@@ -22,14 +22,34 @@ export type MinimalAiMessage = {
   additional_kwargs?: Record<string, unknown>;
 };
 
+type SubagentRun = {
+  toolCallId: string;
+  toolName: string;
+  instructions?: string;
+  status: "running" | "success" | "error";
+  result?: string;
+};
+
+function stringifyToolOutput(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export function mergeStreamedAiMessage({
   previous,
   incoming,
-  forcedId,
 }: {
   previous: MinimalAiMessage;
   incoming: MinimalAiMessage;
-  forcedId: string;
 }): MinimalAiMessage {
   const existingToolCalls = (previous.tool_calls ?? []) as Array<
     Record<string, unknown>
@@ -63,7 +83,6 @@ export function mergeStreamedAiMessage({
 
   return {
     ...incoming,
-    id: forcedId,
     tool_calls: mergedToolCalls,
     additional_kwargs: additionalKwargs,
   };
@@ -92,12 +111,7 @@ export function useElileaiExternalRuntime() {
         (state as unknown as { values?: { messages?: LangChainMessage[] } })
           ?.values?.messages ?? [];
       if (!cancelled) {
-        const filteredMsgs = (Array.isArray(msgs) ? msgs : []).filter((m) => {
-          const msgWithType = m as Record<string, unknown>;
-          return msgWithType.type !== "tool";
-        });
-
-        const msgsWithIds = filteredMsgs.map((m, idx) => {
+        const msgsWithIds = (Array.isArray(msgs) ? msgs : []).map((m, idx) => {
           const msgWithId = m as Record<string, unknown>;
           return {
             ...m,
@@ -112,6 +126,61 @@ export function useElileaiExternalRuntime() {
     };
   }, [externalId]);
 
+  const subagentRuns = useMemo((): SubagentRun[] => {
+    const calls = new Map<string, SubagentRun>();
+
+    for (const m of lcMessages as Array<Record<string, unknown>>) {
+      if (m.type === "ai" && Array.isArray(m.tool_calls)) {
+        for (const tc of m.tool_calls as Array<Record<string, unknown>>) {
+          const toolName = String(tc?.name ?? "");
+          if (toolName !== "research_agent") continue;
+          const toolCallId = String(tc?.id ?? "");
+          if (!toolCallId) continue;
+          const args = (tc?.args ?? {}) as Record<string, unknown>;
+          const instructions =
+            typeof args.instructions === "string" ? args.instructions : undefined;
+
+          calls.set(toolCallId, {
+            toolCallId,
+            toolName,
+            instructions,
+            status: "running",
+          });
+        }
+      }
+    }
+
+    for (const m of lcMessages as Array<Record<string, unknown>>) {
+      if (m.type === "tool") {
+        const toolName = String(m.name ?? "");
+        if (toolName !== "research_agent") continue;
+        const toolCallId = String(m.tool_call_id ?? "");
+        if (!toolCallId) continue;
+        const status = m.status === "error" ? "error" : "success";
+        const artifact = m.artifact as unknown;
+        const artifactOutput =
+          isRecord(artifact) && "output" in artifact ? artifact.output : undefined;
+        const output =
+          artifactOutput !== undefined
+            ? stringifyToolOutput(artifactOutput)
+            : typeof m.content === "string"
+              ? m.content
+              : stringifyToolOutput(m.content);
+
+        const existing = calls.get(toolCallId);
+        calls.set(toolCallId, {
+          toolCallId,
+          toolName,
+          instructions: existing?.instructions,
+          status,
+          result: output,
+        });
+      }
+    }
+
+    return Array.from(calls.values());
+  }, [lcMessages]);
+
   const uiMessages = useMemo(() => {
     const messages = lcMessages
       .map((msg) => {
@@ -120,6 +189,11 @@ export function useElileaiExternalRuntime() {
           ? converted[0]
           : converted;
         if (!threadMessage) return null;
+
+        // IMPORTANT: @assistant-ui/core currently throws on role === "tool"
+        // (Unknown message role: tool). We still keep tool data in lcMessages
+        // and expose it via thread.extras for the Subagents panel.
+        if ((threadMessage as { role?: string }).role === "tool") return null;
 
         if (
           threadMessage.role === "assistant" &&
@@ -154,6 +228,13 @@ export function useElileaiExternalRuntime() {
   const runtime = useExternalStoreRuntime({
     isRunning,
     messages: uiMessages,
+    extras: {
+      elileai: {
+        subagents: {
+          runs: subagentRuns,
+        },
+      },
+    },
     convertMessage: (msg) => msg,
     onNew: async (msg: AppendMessage) => {
       let currentExternalId = aui.threadListItem().getState().externalId;
@@ -191,15 +272,6 @@ export function useElileaiExternalRuntime() {
 
       setLcMessages((prev) => [...prev, userMessage]);
 
-      const assistantMessageId = generateId();
-      const assistantMessage = {
-        type: "ai",
-        content: "",
-        id: assistantMessageId,
-      } as unknown as LangChainMessage;
-
-      setLcMessages((prev) => [...prev, assistantMessage]);
-
       setIsRunning(true);
       isStreamingRef.current = true;
 
@@ -210,7 +282,7 @@ export function useElileaiExternalRuntime() {
       try {
         const stream = await sendMessage({
           threadId: currentExternalId!,
-          messages: [{ type: "human", content: humanText }],
+          messages: [{ type: "human", content: humanText, id: userMessageId }],
           signal: abortController.signal,
         });
 
@@ -225,32 +297,42 @@ export function useElileaiExternalRuntime() {
             }
           }
 
-          if (part.event === "messages/partial" && isStreamingRef.current) {
+          if (
+            (part.event === "messages/partial" || part.event === "messages/complete") &&
+            isStreamingRef.current
+          ) {
             const data = part.data as unknown;
-            const serialized = Array.isArray(data)
-              ? (data[0] as Record<string, unknown> | undefined)
-              : undefined;
-            const type = serialized?.["type"] as string | undefined;
+            const serializedMsgs = Array.isArray(data)
+              ? (data as Array<Record<string, unknown>>)
+              : [];
 
-            if (type === "ai" && serialized) {
-              setLcMessages((prev) =>
-                prev.map((m) => {
-                  const msgWithId = m as Record<string, unknown>;
-                  if (msgWithId.id !== assistantMessageId) return m;
+            if (serializedMsgs.length === 0) continue;
 
+            setLcMessages((prev) => {
+              const byId = new Map<string, LangChainMessage>();
+              for (const m of prev) {
+                const id = (m as unknown as { id?: string }).id;
+                if (id) byId.set(id, m);
+              }
+
+              for (const raw of serializedMsgs) {
+                const type = raw?.["type"] as string | undefined;
+                const id = (raw?.["id"] as string | undefined) ?? generateId();
+
+                const existing = byId.get(id);
+                if (existing && type === "ai") {
                   const merged = mergeStreamedAiMessage({
-                    previous: msgWithId as unknown as MinimalAiMessage,
-                    incoming: serialized as unknown as MinimalAiMessage,
-                    forcedId: assistantMessageId,
+                    previous: existing as unknown as MinimalAiMessage,
+                    incoming: raw as unknown as MinimalAiMessage,
                   });
+                  byId.set(id, merged as unknown as LangChainMessage);
+                } else {
+                  byId.set(id, { ...raw, id } as unknown as LangChainMessage);
+                }
+              }
 
-                  return {
-                    ...merged,
-                    _updated: Date.now(),
-                  } as unknown as LangChainMessage;
-                }),
-              );
-            }
+              return Array.from(byId.values());
+            });
 
           }
         }
@@ -274,12 +356,6 @@ export function useElileaiExternalRuntime() {
           return;
         }
         console.error("[useElileaiRuntime] Error during message streaming:", error);
-        setLcMessages((prev) =>
-          prev.filter((m) => {
-            const msgWithId = m as Record<string, unknown>;
-            return msgWithId.id !== assistantMessageId;
-          }),
-        );
       } finally {
         setIsRunning(false);
         isStreamingRef.current = false;

@@ -1,8 +1,9 @@
 import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
 import { useMessage } from "@assistant-ui/react";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, ExternalLinkIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import { useSubagentPanel } from "@/components/assistant-ui/subagent-panel-context";
 
 interface ToolCallPart {
   type: "tool-call";
@@ -62,6 +63,25 @@ const formatArgs = (argsText: string): React.ReactElement => {
   }
 };
 
+function extractInstructions(argsText?: string): string | null {
+  if (!argsText) return null;
+  try {
+    const parsed = JSON.parse(argsText) as Record<string, unknown>;
+    const instructions = parsed?.instructions;
+    if (typeof instructions === "string" && instructions.trim().length > 0) {
+      return instructions.trim();
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function truncate(text: string, max: number) {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + "…";
+}
+
 export const ToolFallback: ToolCallMessagePartComponent = ({
   toolName,
   toolCallId,
@@ -70,6 +90,7 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const content = useMessage((m) => m.content);
+  const subagentPanel = useSubagentPanel();
 
   // Get all tool calls of the same type
   const { isFirst, allCalls } = useMemo(() => {
@@ -84,7 +105,8 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
     };
   }, [content, toolName, toolCallId]);
 
-  const isSearch = toolName.toLowerCase().includes("search");
+  const isSubagentTool = toolName === "research_agent";
+  const isSearch = !isSubagentTool && toolName.toLowerCase().includes("search");
 
   // Extract document names from search tool call args
   const docNames = useMemo(() => {
@@ -119,6 +141,82 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   };
 
   const formattedName = getFormattedName();
+
+  if (isSubagentTool) {
+    const previews = allCalls.map((c) => {
+      const instr =
+        extractInstructions(c.argsText) ??
+        (typeof c.args?.instructions === "string" ? c.args.instructions : null);
+      return {
+        toolCallId: c.toolCallId,
+        instructions: instr ?? "No instructions",
+        preview: truncate(instr ?? "No instructions", 140),
+      };
+    });
+
+    return (
+      <div className="aui-tool-fallback-root mb-4 flex w-full flex-col gap-3 rounded-lg border py-3">
+        <div className="aui-tool-fallback-header flex items-center gap-2 px-4">
+          <CheckIcon className="aui-tool-fallback-icon size-4" />
+          <p className="aui-tool-fallback-title flex-grow flex items-center gap-2">
+            Triggered Subagent
+            {count > 1 && (
+              <span className="inline-flex items-center rounded-full bg-secondary text-secondary-foreground px-2 py-0.5 text-xs font-semibold">
+                {count}
+              </span>
+            )}
+          </p>
+          <Button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="bg-[var(--elileai-link)] hover:bg-[var(--elileai-link-hover)]"
+          >
+            {isCollapsed ? <ChevronUpIcon /> : <ChevronDownIcon />}
+          </Button>
+        </div>
+        {!isCollapsed && (
+          <div className="aui-tool-fallback-content flex flex-col gap-2 border-t pt-2">
+            {previews.map((p, idx) => (
+              <div key={p.toolCallId} className="px-4">
+                {count > 1 ? (
+                  <div className="mb-1 flex items-center justify-between">
+                    <div className="text-xs text-muted-foreground">
+                      Worker {idx + 1} of {count}
+                    </div>
+                    <Button
+                      onClick={() => subagentPanel.openForToolCall(p.toolCallId)}
+                      variant="ghost"
+                      className="h-7 px-2"
+                    >
+                      <ExternalLinkIcon className="size-4" />
+                      <span className="ml-1 text-xs">Open</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="mb-1 flex items-center justify-end">
+                    <Button
+                      onClick={() => subagentPanel.openForToolCall(p.toolCallId)}
+                      variant="ghost"
+                      className="h-7 px-2"
+                    >
+                      <ExternalLinkIcon className="size-4" />
+                      <span className="ml-1 text-xs">Open</span>
+                    </Button>
+                  </div>
+                )}
+                <div className="text-xs font-semibold text-muted-foreground mb-1">
+                  Instructions
+                </div>
+                <pre className="text-xs whitespace-pre-wrap">{p.preview}</pre>
+                {idx < previews.length - 1 ? (
+                  <hr className="my-3 border-dashed" />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="aui-tool-fallback-root mb-4 flex w-full flex-col gap-3 rounded-lg border py-3">
