@@ -1,3 +1,3 @@
-import { tools as anthropicTools } from "@langchain/anthropic";
+import { tools as openaiTools } from "@langchain/openai";
 
-export const webSearchTool = anthropicTools.webSearch_20250305();
+export const webSearchTool = openaiTools.webSearch();

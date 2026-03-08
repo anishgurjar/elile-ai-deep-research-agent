@@ -1,20 +1,17 @@
 import { createAgent } from "langchain";
-import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatOpenAI } from "@langchain/openai";
 import { prompt } from "./prompt";
 import { webSearchTool } from "./tools";
 
-const modelName = process.env.ELILEAI_RESEARCH_MODEL ?? "claude-sonnet-4-6";
+const modelName = process.env.ELILEAI_RESEARCH_MODEL ?? "gpt-5.2";
 
 const agent = createAgent({
-  // IMPORTANT: this subagent must NOT stream tokens.
-  // When invoked inside a tool call, streamed tokens can leak into the
-  // supervisor's main UI stream via the shared callback/stream plumbing.
-  model: new ChatAnthropic({ 
-    model: modelName, 
+  model: new ChatOpenAI({
+    model: modelName,
     streaming: false,
-    thinking: {
-      type: "enabled",
-      budget_tokens: 5000,
+    reasoning: {
+      effort: "low",
+      summary: "auto",
     },
   }),
   tools: [webSearchTool],
@@ -33,10 +30,9 @@ export function extractTextFromModelContent(content: unknown): string {
         if (typeof part === "string") return part;
         if (typeof part === "object") {
           const rec = part as Record<string, unknown>;
+          if (rec.type === "thinking") return "";
           const text = rec.text;
           if (typeof text === "string") return text;
-          const thinking = rec.thinking;
-          if (typeof thinking === "string") return thinking;
         }
         return "";
       })
@@ -66,4 +62,8 @@ export async function runResearchTopic(topic: string): Promise<string> {
 
 export async function runResearchAgent(instructions: string): Promise<string> {
   return runResearchTopic(instructions);
+}
+
+export function getResearchModelNameForTest() {
+  return modelName;
 }
