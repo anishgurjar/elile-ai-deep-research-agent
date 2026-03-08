@@ -30,10 +30,9 @@ describe("mergeStreamedAiMessage", () => {
     const merged = mergeStreamedAiMessage({
       previous: prev,
       incoming,
-      forcedId: "assistant-1",
     });
 
-    expect(merged.id).toBe("assistant-1");
+    expect(merged.id).toBe("server-id");
     expect(merged.additional_kwargs?.reasoning).toBeDefined();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((merged.additional_kwargs!.reasoning as any).summary[0].text).toBe(
@@ -64,7 +63,6 @@ describe("mergeStreamedAiMessage", () => {
     const merged = mergeStreamedAiMessage({
       previous: prev,
       incoming,
-      forcedId: "a1",
     });
 
     expect(Array.isArray(merged.content)).toBe(true);

@@ -4,7 +4,13 @@ import { fetchClerkSessionToken } from "@elileai/shared-testing/clerk-test-token
 import { RealLangGraphClient } from "./real-langgraph-client";
 
 const assistantId = process.env.NEXT_PUBLIC_LANGGRAPH_ASSISTANT_ID;
-describe("RealLangGraphClient (integration)", () => {
+
+const hasRealClerkSecret =
+  typeof process.env.CLERK_SECRET_KEY === "string" &&
+  process.env.CLERK_SECRET_KEY.length > 0 &&
+  !process.env.CLERK_SECRET_KEY.includes("your-clerk-secret-key-here");
+
+describe.skipIf(!hasRealClerkSecret)("RealLangGraphClient (integration)", () => {
   vi.setConfig({ testTimeout: 120_000 });
   setupPollyRecording({
     sensitiveHeaders: ["authorization", "x-api-key"],
