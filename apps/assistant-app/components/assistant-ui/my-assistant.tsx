@@ -22,8 +22,6 @@ import {
 } from "@/components/ui/breadcrumb";
 import { ElileaiThreadListAdapter } from "./elileai-adapter";
 import { useElileaiExternalRuntime } from "./use-elileai-runtime";
-import { SubagentsPanel } from "./subagents-panel";
-import { SubagentPanelProvider } from "./subagent-panel-context";
 
 export function CustomThreadListProvider({
   children,
@@ -58,14 +56,9 @@ export function MyAssistant() {
                 </BreadcrumbList>
               </Breadcrumb>
             </header>
-            <SubagentPanelProvider>
-              <div className="flex-1 overflow-hidden flex">
-                <div className="flex-1 min-w-0">
-                  <Thread />
-                </div>
-                <SubagentsPanel />
-              </div>
-            </SubagentPanelProvider>
+            <div className="flex-1 overflow-hidden">
+              <Thread />
+            </div>
           </SidebarInset>
         </div>
       </SidebarProvider>

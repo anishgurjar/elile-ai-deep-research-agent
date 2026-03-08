@@ -1,29 +1,24 @@
 import { createAgent } from "langchain";
-import { ChatOpenAI, tools as openaiTools } from "@langchain/openai";
+import { ChatAnthropic } from "@langchain/anthropic";
+import { prompt } from "./prompt";
+import { webSearchTool } from "./tools";
 
-const researchPrompt = `
-# ELILEAI Research Agent
-
-## Mission
-You are a specialist research subagent. You can use OpenAI's native web search tool to find up-to-date information.
-
-## Output requirements (STRICT)
-- Always produce a final response message (never return empty).
-- Return a concise, structured answer.
-- Include a short "Sources" section with the most relevant links (URLs) you used.
-- If the question is ambiguous, state assumptions briefly rather than asking follow-ups.
-- The supervisor only sees your final message, so include the actual findings in your final output.
-`.trim();
-
-const modelName = process.env.ELILEAI_RESEARCH_MODEL ?? "gpt-4.1";
+const modelName = process.env.ELILEAI_RESEARCH_MODEL ?? "claude-sonnet-4-6";
 
 const agent = createAgent({
   // IMPORTANT: this subagent must NOT stream tokens.
   // When invoked inside a tool call, streamed tokens can leak into the
   // supervisor's main UI stream via the shared callback/stream plumbing.
-  model: new ChatOpenAI({ model: modelName, streaming: false }),
-  tools: [openaiTools.webSearch()],
-  systemPrompt: researchPrompt,
+  model: new ChatAnthropic({ 
+    model: modelName, 
+    streaming: false,
+    thinking: {
+      type: "enabled",
+      budget_tokens: 5000,
+    },
+  }),
+  tools: [webSearchTool],
+  systemPrompt: prompt,
   name: "ELILEAI_Research_Agent",
 });
 
@@ -72,4 +67,3 @@ export async function runResearchTopic(topic: string): Promise<string> {
 export async function runResearchAgent(instructions: string): Promise<string> {
   return runResearchTopic(instructions);
 }
-

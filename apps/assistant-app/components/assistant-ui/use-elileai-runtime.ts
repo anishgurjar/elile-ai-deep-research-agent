@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { AppendMessage, ThreadMessageLike } from "@assistant-ui/react";
 import { useAui, useExternalStoreRuntime } from "@assistant-ui/react";
 import {
@@ -22,13 +22,7 @@ export type MinimalAiMessage = {
   additional_kwargs?: Record<string, unknown>;
 };
 
-type SubagentRun = {
-  toolCallId: string;
-  toolName: string;
-  instructions?: string;
-  status: "running" | "success" | "error";
-  result?: string;
-};
+type RawMsg = Record<string, unknown>;
 
 function stringifyToolOutput(value: unknown): string {
   if (value == null) return "";
@@ -51,12 +45,8 @@ export function mergeStreamedAiMessage({
   previous: MinimalAiMessage;
   incoming: MinimalAiMessage;
 }): MinimalAiMessage {
-  const existingToolCalls = (previous.tool_calls ?? []) as Array<
-    Record<string, unknown>
-  >;
-  const incomingToolCalls = (incoming.tool_calls ?? []) as Array<
-    Record<string, unknown>
-  >;
+  const existingToolCalls = (previous.tool_calls ?? []) as Array<RawMsg>;
+  const incomingToolCalls = (incoming.tool_calls ?? []) as Array<RawMsg>;
 
   const mergedToolCalls = [...existingToolCalls];
   for (const newTc of incomingToolCalls) {
@@ -75,7 +65,7 @@ export function mergeStreamedAiMessage({
     additionalKwargs?.reasoning &&
     typeof additionalKwargs.reasoning === "object"
   ) {
-    const r = additionalKwargs.reasoning as Record<string, unknown>;
+    const r = additionalKwargs.reasoning as RawMsg;
     if (!Array.isArray(r.summary)) {
       r.summary = [];
     }
@@ -88,11 +78,49 @@ export function mergeStreamedAiMessage({
   };
 }
 
-/**
- * Custom runtime hook that integrates ELILEAI backend with Assistant UI
- * Handles message loading, streaming, and state management
- * Supports tool call streaming and tool result handling
- */
+function findAllPendingResearchToolCallIds(
+  byId: Map<string, RawMsg>,
+): string[] {
+  const resolved = new Set<string>();
+  for (const m of byId.values()) {
+    if (m.type === "tool") {
+      const tcId = String(m.tool_call_id ?? "");
+      if (tcId) resolved.add(tcId);
+    }
+  }
+
+  const pending: string[] = [];
+  for (const m of byId.values()) {
+    if (m.type === "ai" && Array.isArray(m.tool_calls)) {
+      for (const tc of m.tool_calls as Array<RawMsg>) {
+        if (String(tc?.name ?? "") === "research_agent") {
+          const tcId = String(tc?.id ?? "");
+          if (tcId && !resolved.has(tcId)) pending.push(tcId);
+        }
+      }
+    }
+  }
+  return pending;
+}
+
+function extractTextFromRawContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block) => {
+        if (typeof block === "string") return block;
+        if (typeof block === "object" && block !== null) {
+          const rec = block as RawMsg;
+          if (typeof rec.text === "string") return rec.text;
+        }
+        return "";
+      })
+      .filter((s) => s.length > 0)
+      .join("\n");
+  }
+  return "";
+}
+
 export function useElileaiExternalRuntime() {
   const aui = useAui();
   const [lcMessages, setLcMessages] = useState<LangChainMessage[]>([]);
@@ -101,6 +129,19 @@ export function useElileaiExternalRuntime() {
   const isStreamingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const runIdRef = useRef<string | null>(null);
+
+  const messagesByIdRef = useRef(new Map<string, RawMsg>());
+  const subagentMsgIdsRef = useRef(new Set<string>());
+  const subagentToToolCallRef = useRef(new Map<string, string>());
+  const [subagentStreams, setSubagentStreams] = useState<
+    Record<string, string>
+  >({});
+
+  const syncLcMessages = useCallback(() => {
+    setLcMessages(
+      Array.from(messagesByIdRef.current.values()) as LangChainMessage[],
+    );
+  }, []);
 
   useEffect(() => {
     if (!externalId || isStreamingRef.current) return;
@@ -112,12 +153,19 @@ export function useElileaiExternalRuntime() {
           ?.values?.messages ?? [];
       if (!cancelled) {
         const msgsWithIds = (Array.isArray(msgs) ? msgs : []).map((m, idx) => {
-          const msgWithId = m as Record<string, unknown>;
+          const msgWithId = m as RawMsg;
           return {
             ...m,
             id: msgWithId.id || `loaded-${idx}`,
           };
         });
+
+        const byId = new Map<string, RawMsg>();
+        for (const m of msgsWithIds) {
+          const id = (m as RawMsg).id as string;
+          if (id) byId.set(id, m as RawMsg);
+        }
+        messagesByIdRef.current = byId;
         setLcMessages(msgsWithIds as LangChainMessage[]);
       }
     })();
@@ -126,62 +174,27 @@ export function useElileaiExternalRuntime() {
     };
   }, [externalId]);
 
-  const subagentRuns = useMemo((): SubagentRun[] => {
-    const calls = new Map<string, SubagentRun>();
-
-    for (const m of lcMessages as Array<Record<string, unknown>>) {
-      if (m.type === "ai" && Array.isArray(m.tool_calls)) {
-        for (const tc of m.tool_calls as Array<Record<string, unknown>>) {
-          const toolName = String(tc?.name ?? "");
-          if (toolName !== "research_agent") continue;
-          const toolCallId = String(tc?.id ?? "");
-          if (!toolCallId) continue;
-          const args = (tc?.args ?? {}) as Record<string, unknown>;
-          const instructions =
-            typeof args.instructions === "string" ? args.instructions : undefined;
-
-          calls.set(toolCallId, {
-            toolCallId,
-            toolName,
-            instructions,
-            status: "running",
-          });
-        }
-      }
-    }
-
-    for (const m of lcMessages as Array<Record<string, unknown>>) {
-      if (m.type === "tool") {
-        const toolName = String(m.name ?? "");
-        if (toolName !== "research_agent") continue;
-        const toolCallId = String(m.tool_call_id ?? "");
+  const uiMessages = useMemo(() => {
+    const toolResults = new Map<string, unknown>();
+    for (const msg of lcMessages as Array<RawMsg>) {
+      if (msg.type === "tool") {
+        const toolCallId = String(msg.tool_call_id ?? "");
         if (!toolCallId) continue;
-        const status = m.status === "error" ? "error" : "success";
-        const artifact = m.artifact as unknown;
+        const artifact = msg.artifact as unknown;
         const artifactOutput =
-          isRecord(artifact) && "output" in artifact ? artifact.output : undefined;
-        const output =
+          isRecord(artifact) && "output" in artifact
+            ? artifact.output
+            : undefined;
+        const result =
           artifactOutput !== undefined
             ? stringifyToolOutput(artifactOutput)
-            : typeof m.content === "string"
-              ? m.content
-              : stringifyToolOutput(m.content);
-
-        const existing = calls.get(toolCallId);
-        calls.set(toolCallId, {
-          toolCallId,
-          toolName,
-          instructions: existing?.instructions,
-          status,
-          result: output,
-        });
+            : typeof msg.content === "string"
+              ? msg.content
+              : stringifyToolOutput(msg.content);
+        toolResults.set(toolCallId, result);
       }
     }
 
-    return Array.from(calls.values());
-  }, [lcMessages]);
-
-  const uiMessages = useMemo(() => {
     const messages = lcMessages
       .map((msg) => {
         const converted = convertLangChainMessages(msg, {});
@@ -190,19 +203,34 @@ export function useElileaiExternalRuntime() {
           : converted;
         if (!threadMessage) return null;
 
-        // IMPORTANT: @assistant-ui/core currently throws on role === "tool"
-        // (Unknown message role: tool). We still keep tool data in lcMessages
-        // and expose it via thread.extras for the Subagents panel.
         if ((threadMessage as { role?: string }).role === "tool") return null;
 
         if (
           threadMessage.role === "assistant" &&
           Array.isArray(threadMessage.content)
         ) {
-          const toolCalls = threadMessage.content.filter(
+          const enrichedContent = threadMessage.content.map((part) => {
+            if (
+              part.type === "tool-call" &&
+              "toolCallId" in part &&
+              typeof part.toolCallId === "string"
+            ) {
+              const finalResult = toolResults.get(part.toolCallId);
+              if (finalResult !== undefined) {
+                return { ...part, result: finalResult };
+              }
+              const streamingContent = subagentStreams[part.toolCallId];
+              if (streamingContent) {
+                return { ...part, result: streamingContent };
+              }
+            }
+            return part;
+          });
+
+          const toolCalls = enrichedContent.filter(
             (part) => part.type === "tool-call",
           );
-          const otherContent = threadMessage.content.filter(
+          const otherContent = enrichedContent.filter(
             (part) => part.type !== "tool-call",
           );
 
@@ -213,6 +241,12 @@ export function useElileaiExternalRuntime() {
               ...(isStreamingRef.current ? { _streaming: Date.now() } : {}),
             } as ThreadMessageLike;
           }
+
+          return {
+            ...threadMessage,
+            content: enrichedContent,
+            ...(isStreamingRef.current ? { _streaming: Date.now() } : {}),
+          } as ThreadMessageLike;
         }
 
         return {
@@ -223,18 +257,11 @@ export function useElileaiExternalRuntime() {
       .filter((m): m is ThreadMessageLike => m !== null);
 
     return messages;
-  }, [lcMessages]);
+  }, [lcMessages, subagentStreams]);
 
   const runtime = useExternalStoreRuntime({
     isRunning,
     messages: uiMessages,
-    extras: {
-      elileai: {
-        subagents: {
-          runs: subagentRuns,
-        },
-      },
-    },
     convertMessage: (msg) => msg,
     onNew: async (msg: AppendMessage) => {
       let currentExternalId = aui.threadListItem().getState().externalId;
@@ -264,13 +291,18 @@ export function useElileaiExternalRuntime() {
       const isFirstMessage = lcMessages.length === 0;
 
       const userMessageId = generateId();
-      const userMessage = {
+      const userMessage: RawMsg = {
         type: "human",
         content: humanText,
         id: userMessageId,
-      } as unknown as LangChainMessage;
+      };
 
-      setLcMessages((prev) => [...prev, userMessage]);
+      messagesByIdRef.current.set(userMessageId, userMessage);
+      syncLcMessages();
+
+      subagentMsgIdsRef.current.clear();
+      subagentToToolCallRef.current.clear();
+      setSubagentStreams({});
 
       setIsRunning(true);
       isStreamingRef.current = true;
@@ -291,49 +323,82 @@ export function useElileaiExternalRuntime() {
           data: unknown;
         }>) {
           if (part.event === "metadata") {
-            const meta = part.data as Record<string, unknown> | null;
+            const meta = part.data as RawMsg | null;
             if (meta?.run_id && typeof meta.run_id === "string") {
               runIdRef.current = meta.run_id;
             }
           }
 
           if (
-            (part.event === "messages/partial" || part.event === "messages/complete") &&
+            (part.event === "messages/partial" ||
+              part.event === "messages/complete") &&
             isStreamingRef.current
           ) {
             const data = part.data as unknown;
             const serializedMsgs = Array.isArray(data)
-              ? (data as Array<Record<string, unknown>>)
+              ? (data as Array<RawMsg>)
               : [];
 
             if (serializedMsgs.length === 0) continue;
 
-            setLcMessages((prev) => {
-              const byId = new Map<string, LangChainMessage>();
-              for (const m of prev) {
-                const id = (m as unknown as { id?: string }).id;
-                if (id) byId.set(id, m);
-              }
+            const byId = messagesByIdRef.current;
+            const subagentUpdates: Record<string, string> = {};
 
-              for (const raw of serializedMsgs) {
-                const type = raw?.["type"] as string | undefined;
-                const id = (raw?.["id"] as string | undefined) ?? generateId();
+            for (const raw of serializedMsgs) {
+              const type = raw?.["type"] as string | undefined;
+              const id =
+                (raw?.["id"] as string | undefined) ?? generateId();
 
+              if (type === "ai") {
                 const existing = byId.get(id);
-                if (existing && type === "ai") {
-                  const merged = mergeStreamedAiMessage({
-                    previous: existing as unknown as MinimalAiMessage,
-                    incoming: raw as unknown as MinimalAiMessage,
-                  });
-                  byId.set(id, merged as unknown as LangChainMessage);
+
+                if (existing) {
+                  if (subagentMsgIdsRef.current.has(id)) {
+                    // Only forward content when there's a stable 1:1 mapping to a tool call.
+                    // For parallel calls the mapping is absent because content is interleaved.
+                    const tcId = subagentToToolCallRef.current.get(id);
+                    if (tcId) {
+                      const text = extractTextFromRawContent(raw.content);
+                      if (text) subagentUpdates[tcId] = text;
+                    }
+                  } else {
+                    const merged = mergeStreamedAiMessage({
+                      previous: existing as unknown as MinimalAiMessage,
+                      incoming: raw as unknown as MinimalAiMessage,
+                    });
+                    byId.set(id, merged as unknown as RawMsg);
+                  }
                 } else {
-                  byId.set(id, { ...raw, id } as unknown as LangChainMessage);
+                  const pendingTcIds =
+                    findAllPendingResearchToolCallIds(byId);
+
+                  if (pendingTcIds.length === 1) {
+                    const tcId = pendingTcIds[0];
+                    subagentMsgIdsRef.current.add(id);
+                    subagentToToolCallRef.current.set(id, tcId);
+                    const text = extractTextFromRawContent(raw.content);
+                    if (text) {
+                      subagentUpdates[tcId] = text;
+                    }
+                  } else if (pendingTcIds.length > 1) {
+                    // LangGraph interleaves parallel subagent streams into one message;
+                    // we can't attribute content to a specific tool call. Filter out;
+                    // each box shows its result when the tool completes.
+                    subagentMsgIdsRef.current.add(id);
+                  } else {
+                    byId.set(id, { ...raw, id });
+                  }
                 }
+              } else {
+                byId.set(id, { ...raw, id });
               }
+            }
 
-              return Array.from(byId.values());
-            });
+            syncLcMessages();
 
+            if (Object.keys(subagentUpdates).length > 0) {
+              setSubagentStreams((prev) => ({ ...prev, ...subagentUpdates }));
+            }
           }
         }
 
@@ -343,7 +408,7 @@ export function useElileaiExternalRuntime() {
           try {
             await aui.threadListItem().generateTitle();
           } catch {
-            // Title generation is non-critical, silently ignore failures
+            /* title generation non-critical */
           }
         }
       } catch (error) {
