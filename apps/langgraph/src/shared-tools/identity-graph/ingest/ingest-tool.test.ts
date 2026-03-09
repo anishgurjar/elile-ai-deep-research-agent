@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest";
-import { GraphDocument } from "@langchain/community/graphs/document";
+import { GraphDocument, Node } from "@langchain/community/graphs/document";
 import { Document } from "@langchain/core/documents";
-import { createIdentityGraphIngestTool } from "./identity-graph-tools";
+import { createIdentityGraphIngestTool } from "./ingest-tool";
 
 describe("identity-graph-tools", () => {
   test("creates a tool with the correct name and content_and_artifact format", () => {
@@ -15,7 +15,7 @@ describe("identity-graph-tools", () => {
     const query = vi.fn(async () => []);
     const convertToGraphDocuments = vi.fn(async () => [
       new GraphDocument({
-        nodes: [{ id: "n1", type: "Person" }],
+        nodes: [new Node({ id: "n1", type: "Person" })],
         relationships: [],
         source: new Document({ pageContent: "test" }),
       }),

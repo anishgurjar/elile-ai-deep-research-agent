@@ -27,11 +27,12 @@ services:
   # Neo4j Graph Database
   # ===================
   neo4j:
-    image: neo4j:5
+    image: neo4j:5-enterprise
     container_name: ${COMPOSE_PROJECT_NAME:-elileai}-neo4j
     restart: unless-stopped
     environment:
       NEO4J_AUTH: neo4j/${ELILEAI_NEO4J_PASSWORD:-neo4j_dev}
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
       NEO4J_PLUGINS: '["apoc"]'
     ports:
       - "${ELILEAI_NEO4J_HTTP_PORT:-7474}:7474"
@@ -45,6 +46,24 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # ===================
+  # Neo4j Read-Only User Init (one-shot)
+  # ===================
+  neo4j-init:
+    image: neo4j:5-enterprise
+    container_name: ${COMPOSE_PROJECT_NAME:-elileai}-neo4j-init
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      ELILEAI_NEO4J_URI: bolt://neo4j:7687
+      ELILEAI_NEO4J_USERNAME: neo4j
+      ELILEAI_NEO4J_PASSWORD: ${ELILEAI_NEO4J_PASSWORD:-neo4j_dev}
+    volumes:
+      - ./infrastructure/neo4j:/init:ro
+    entrypoint: ["/bin/bash", "/init/init-readonly.sh"]
+    restart: "no"
 
 volumes:
   postgres_data:

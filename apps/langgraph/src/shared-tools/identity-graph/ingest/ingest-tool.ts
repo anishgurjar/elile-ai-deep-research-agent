@@ -2,8 +2,8 @@ import { tool } from "langchain";
 import { z } from "zod";
 import {
   ingestIdentityGraphFromResearch,
-} from "../../identity-graph/ingest-identity-graph";
-import type { IngestIdentityGraphOptions } from "../../identity-graph/ingest-identity-graph";
+} from "../../../identity-graph/ingest-identity-graph";
+import type { IngestIdentityGraphOptions } from "../../../identity-graph/ingest-identity-graph";
 
 const ResearchResultItemSchema = z.object({
   text: z.string().describe("The research subagent's text output for this topic"),

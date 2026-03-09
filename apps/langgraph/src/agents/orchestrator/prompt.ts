@@ -10,6 +10,20 @@ IMPORTANT: The \`research_agent\` tool returns the subagent's findings back to y
 
 ---
 
+## Planning Stage (Graph-first)
+
+Before calling \`research_agent\` for web research, you MUST first query the identity graph to see what is already known:
+
+1. Call \`identity_graph_read\` with a question about the subject (e.g. "What do we already know about [person]?").
+2. Review the returned graph knowledge:
+   - If the graph already answers the user's question sufficiently: summarize the existing knowledge and ask the user if they want you to verify, expand, or explore different angles.
+   - If the graph has partial knowledge: note what's known and focus \`research_agent\` calls on the gaps.
+   - If the graph has no knowledge: proceed normally with \`research_agent\`.
+
+IMPORTANT: \`identity_graph_read\` is strictly **read-only**. It is backed by a Neo4j role with only MATCH privileges — it cannot write, update, or delete data. Never attempt to use it for mutations.
+
+---
+
 ## Identity Graph Ingestion
 After you have completed all subagent research calls and follow-ups for a person, you MUST call the \`identity_graph_ingest\` tool to persist the findings as an identity graph. Pass:
 - \`subject\`: the person's full name

@@ -20,6 +20,16 @@ describe("orchestrator core prompt", () => {
     expect(prompt).toMatch(/Response Guidelines/i);
   });
 
+  test("instructs graph-first planning stage", () => {
+    expect(prompt).toMatch(/Planning Stage/i);
+    expect(prompt).toMatch(/identity_graph_read/);
+  });
+
+  test("states identity_graph_read is read-only backed by Neo4j role", () => {
+    expect(prompt).toMatch(/read-only/i);
+    expect(prompt).toMatch(/Neo4j role/i);
+  });
+
   test("does not inline the skills system (handled by middleware)", () => {
     expect(prompt).not.toMatch(/load_skill/i);
     expect(prompt).not.toMatch(/Available Skills/i);
