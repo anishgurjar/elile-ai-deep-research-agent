@@ -8,10 +8,7 @@ import { createResearchAgentTool } from "../research-tools";
 import { createIdentityGraphIngestTool } from "../identity-graph-tools";
 import { runResearchAgent } from "../../research/research-agent";
 import { createNeo4jGraph } from "../../../identity-graph/neo4j-graph";
-import {
-  ALLOWED_NODES,
-  ALLOWED_RELATIONSHIPS,
-} from "../../../identity-graph/ingest-identity-graph";
+import { fetchExistingSchema, buildSchemaAwarePrompt } from "../../../identity-graph/schema";
 
 const researchAgentTool = createResearchAgentTool({
   runResearchAgent: runResearchAgent,
@@ -19,13 +16,14 @@ const researchAgentTool = createResearchAgentTool({
 
 const identityGraphIngestTool = createIdentityGraphIngestTool({
   createGraph: () => createNeo4jGraph(),
-  createTransformer: () =>
-    new LLMGraphTransformer({
+  createTransformer: async (graph) => {
+    const schema = await fetchExistingSchema(graph);
+    return new LLMGraphTransformer({
       llm: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
-      allowedNodes: [...ALLOWED_NODES],
-      allowedRelationships: [...ALLOWED_RELATIONSHIPS],
-      strictMode: true,
-    }),
+      prompt: buildSchemaAwarePrompt(schema),
+      strictMode: false,
+    });
+  },
 });
 
 const agent = createAgent({

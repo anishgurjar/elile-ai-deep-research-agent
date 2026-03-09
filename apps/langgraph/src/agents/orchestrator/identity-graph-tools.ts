@@ -2,7 +2,6 @@ import { tool } from "langchain";
 import { z } from "zod";
 import {
   ingestIdentityGraphFromResearch,
-  type ResearchResult,
 } from "../../identity-graph/ingest-identity-graph";
 import type { IngestIdentityGraphOptions } from "../../identity-graph/ingest-identity-graph";
 
@@ -23,11 +22,11 @@ const IdentityGraphIngestSchema = z.object({
 
 export type IdentityGraphIngestInput = z.infer<typeof IdentityGraphIngestSchema>;
 
-type GraphFactory = () => Pick<IngestIdentityGraphOptions["graph"], "addGraphDocuments">;
-type TransformerFactory = () => Pick<
-  IngestIdentityGraphOptions["transformer"],
-  "convertToGraphDocuments"
->;
+type GraphInstance = IngestIdentityGraphOptions["graph"];
+type TransformerInstance = IngestIdentityGraphOptions["transformer"];
+
+type GraphFactory = () => GraphInstance;
+type TransformerFactory = (graph: GraphInstance) => TransformerInstance | Promise<TransformerInstance>;
 
 export interface CreateIdentityGraphIngestToolOptions {
   createGraph?: GraphFactory;
@@ -40,11 +39,11 @@ export function createIdentityGraphIngestTool(
   return tool(
     async (input: IdentityGraphIngestInput) => {
       const graph = options.createGraph?.();
-      const transformer = options.createTransformer?.();
-
-      if (!graph || !transformer) {
+      if (!graph || !options.createTransformer) {
         return "Identity graph ingestion skipped: graph or transformer not configured.";
       }
+
+      const transformer = await options.createTransformer(graph);
 
       const result = await ingestIdentityGraphFromResearch({
         subject: input.subject,

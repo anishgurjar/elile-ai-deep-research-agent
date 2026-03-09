@@ -11,6 +11,7 @@ describe("identity-graph-tools", () => {
 
   test("calls ingestIdentityGraphFromResearch with correct args", async () => {
     const addGraphDocuments = vi.fn(async () => undefined);
+    const query = vi.fn(async () => []);
     const convertToGraphDocuments = vi.fn(async () => [
       new GraphDocument({
         nodes: [{ id: "n1", type: "Person" }],
@@ -20,7 +21,7 @@ describe("identity-graph-tools", () => {
     ]);
 
     const tool = createIdentityGraphIngestTool({
-      createGraph: () => ({ addGraphDocuments }),
+      createGraph: () => ({ addGraphDocuments, query }),
       createTransformer: () => ({ convertToGraphDocuments }),
     });
 
@@ -40,6 +41,35 @@ describe("identity-graph-tools", () => {
     expect(addGraphDocuments).toHaveBeenCalledTimes(1);
     expect(result).toContain("Ada Lovelace");
     expect(result).toContain("1 nodes");
+  });
+
+  test("transformer factory receives the graph instance", async () => {
+    const graphInstance = {
+      addGraphDocuments: vi.fn(async () => undefined),
+      query: vi.fn(async () => []),
+    };
+    const createTransformer = vi.fn(() => ({
+      convertToGraphDocuments: vi.fn(async () => [
+        new GraphDocument({
+          nodes: [],
+          relationships: [],
+          source: new Document({ pageContent: "test" }),
+        }),
+      ]),
+    }));
+
+    const tool = createIdentityGraphIngestTool({
+      createGraph: () => graphInstance,
+      createTransformer,
+    });
+
+    await tool.invoke({
+      subject: "Test",
+      threadId: "t1",
+      researchResults: [{ text: "text" }],
+    });
+
+    expect(createTransformer).toHaveBeenCalledWith(graphInstance);
   });
 
   test("returns skip message when graph/transformer not configured", async () => {

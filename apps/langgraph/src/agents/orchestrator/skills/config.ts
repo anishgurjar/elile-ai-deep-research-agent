@@ -4,6 +4,7 @@ import type { SkillSources } from "../../../skills/registry";
 import retrievalProtocol from "./retrieval-protocol/SKILL";
 import topicAnalysis from "./topic-analysis/SKILL";
 import outputContract from "../../../skills/shared_skills/output-contract/SKILL";
+import identityGraphSchema from "../../../skills/shared_skills/identity-graph-schema/SKILL";
 
 export const SKILL_CATALOG: Skill[] = [
   {
@@ -21,11 +22,17 @@ export const SKILL_CATALOG: Skill[] = [
     description:
       "Strict response formats — answer vs request more info. Never mix modes.",
   },
+  {
+    name: "identity-graph-schema",
+    description:
+      "Conventions for identity graph entities and relationships — casing, dedup, naming.",
+  },
 ];
 
 export const SKILL_SOURCES: SkillSources = {
   global: {
     "output-contract": outputContract,
+    "identity-graph-schema": identityGraphSchema,
   },
   local: {
     "retrieval-protocol": retrievalProtocol,
