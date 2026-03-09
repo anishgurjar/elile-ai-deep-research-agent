@@ -19,7 +19,7 @@ const identityGraphIngestTool = createIdentityGraphIngestTool({
   createTransformer: async (graph) => {
     const schema = await fetchExistingSchema(graph);
     return new LLMGraphTransformer({
-      llm: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0 }),
+      llm: new ChatOpenAI({ model: "gpt-4o-mini", temperature: 0, streaming: false }),
       prompt: buildSchemaAwarePrompt(schema),
       strictMode: false,
     });

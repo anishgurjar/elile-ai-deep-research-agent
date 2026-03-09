@@ -4,9 +4,10 @@ import { Document } from "@langchain/core/documents";
 import { createIdentityGraphIngestTool } from "./identity-graph-tools";
 
 describe("identity-graph-tools", () => {
-  test("creates a tool with the correct name", () => {
+  test("creates a tool with the correct name and content_and_artifact format", () => {
     const tool = createIdentityGraphIngestTool();
     expect(tool.name).toBe("identity_graph_ingest");
+    expect(tool.responseFormat).toBe("content_and_artifact");
   });
 
   test("calls ingestIdentityGraphFromResearch with correct args", async () => {

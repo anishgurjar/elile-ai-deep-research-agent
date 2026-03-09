@@ -40,7 +40,10 @@ export function createIdentityGraphIngestTool(
     async (input: IdentityGraphIngestInput) => {
       const graph = options.createGraph?.();
       if (!graph || !options.createTransformer) {
-        return "Identity graph ingestion skipped: graph or transformer not configured.";
+        return [
+          "Identity graph ingestion skipped: graph or transformer not configured.",
+          { tool: "identity_graph_ingest", skipped: true },
+        ] as const;
       }
 
       const transformer = await options.createTransformer(graph);
@@ -53,13 +56,24 @@ export function createIdentityGraphIngestTool(
         transformer,
       });
 
-      return `Identity graph ingestion complete: ${result.nodeCount} nodes, ${result.relationshipCount} relationships written for "${input.subject}".`;
+      const content = `Identity graph ingestion complete: ${result.nodeCount} nodes, ${result.relationshipCount} relationships written for "${input.subject}".`;
+
+      return [
+        content,
+        {
+          tool: "identity_graph_ingest",
+          subject: input.subject,
+          nodeCount: result.nodeCount,
+          relationshipCount: result.relationshipCount,
+        },
+      ] as const;
     },
     {
       name: "identity_graph_ingest",
       description:
         "After completing research on a person, call this tool to persist the findings as an identity graph in Neo4j. Pass the subject name, thread ID, and all research results.",
       schema: IdentityGraphIngestSchema,
+      responseFormat: "content_and_artifact",
     },
   );
 }
