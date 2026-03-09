@@ -1,4 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
+import { GraphDocument } from "@langchain/community/graphs/document";
+import { Document } from "@langchain/core/documents";
 import { createIdentityGraphIngestTool } from "./identity-graph-tools";
 
 describe("identity-graph-tools", () => {
@@ -10,12 +12,16 @@ describe("identity-graph-tools", () => {
   test("calls ingestIdentityGraphFromResearch with correct args", async () => {
     const addGraphDocuments = vi.fn(async () => undefined);
     const convertToGraphDocuments = vi.fn(async () => [
-      { nodes: [{ id: "n1", type: "Person" }], relationships: [], source: {} },
+      new GraphDocument({
+        nodes: [{ id: "n1", type: "Person" }],
+        relationships: [],
+        source: new Document({ pageContent: "test" }),
+      }),
     ]);
 
     const tool = createIdentityGraphIngestTool({
-      createGraph: () => ({ addGraphDocuments }) as any,
-      createTransformer: () => ({ convertToGraphDocuments }) as any,
+      createGraph: () => ({ addGraphDocuments }),
+      createTransformer: () => ({ convertToGraphDocuments }),
     });
 
     const result = await tool.invoke({

@@ -37,8 +37,8 @@ describe("ingestIdentityGraphFromResearch", () => {
           angle: "Identity confirmation",
         },
       ],
-      graph: { addGraphDocuments } as any,
-      transformer: { convertToGraphDocuments } as any,
+      graph: { addGraphDocuments },
+      transformer: { convertToGraphDocuments },
     });
 
     expect(convertToGraphDocuments).toHaveBeenCalledTimes(1);
@@ -74,8 +74,8 @@ describe("ingestIdentityGraphFromResearch", () => {
       subject: "Test Person",
       threadId: "t2",
       researchResults: results,
-      graph: { addGraphDocuments } as any,
-      transformer: { convertToGraphDocuments } as any,
+      graph: { addGraphDocuments },
+      transformer: { convertToGraphDocuments },
     });
 
     const docsArg = convertToGraphDocuments.mock.calls[0][0];
@@ -94,8 +94,8 @@ describe("ingestIdentityGraphFromResearch", () => {
       subject: "Someone",
       threadId: "t3",
       researchResults: [{ text: "Some findings" }],
-      graph: { addGraphDocuments } as any,
-      transformer: { convertToGraphDocuments } as any,
+      graph: { addGraphDocuments },
+      transformer: { convertToGraphDocuments },
     });
 
     const doc = convertToGraphDocuments.mock.calls[0][0][0];
