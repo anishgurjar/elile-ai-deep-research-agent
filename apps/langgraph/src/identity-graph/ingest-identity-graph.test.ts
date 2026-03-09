@@ -51,7 +51,6 @@ describe("ingestIdentityGraphFromResearch", () => {
 
     expect(addGraphDocuments).toHaveBeenCalledTimes(1);
     expect(addGraphDocuments).toHaveBeenCalledWith([fakeGraphDoc], {
-      baseEntityLabel: true,
       includeSource: true,
     });
 

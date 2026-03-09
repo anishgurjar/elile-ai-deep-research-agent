@@ -60,7 +60,6 @@ export async function ingestIdentityGraphFromResearch(
   const graphDocuments = await transformer.convertToGraphDocuments(documents);
 
   await graph.addGraphDocuments(graphDocuments, {
-    baseEntityLabel: true,
     includeSource: true,
   });
 
