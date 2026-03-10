@@ -26,6 +26,10 @@ export const runBody = z.object({
   command: z.record(z.string(), z.unknown()).optional(),
   stream_mode: z.array(z.enum(ALLOWED_STREAM_MODES)).optional(),
   config: z.record(z.string(), z.unknown()).optional(),
+  stream_resumable: z.boolean().optional(),
+  on_disconnect: z.enum(["cancel", "continue"]).optional(),
+  multitask_strategy: z.enum(["reject", "interrupt", "rollback", "enqueue"]).optional(),
+  durability: z.enum(["sync", "async", "exit"]).optional(),
 });
 
 export const cancelRunBody = z.object({

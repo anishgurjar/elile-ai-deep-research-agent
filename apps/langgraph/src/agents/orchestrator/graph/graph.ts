@@ -3,6 +3,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { LLMGraphTransformer } from "@langchain/community/experimental/graph_transformers/llm";
 import { prompt } from "../prompt";
 import { skillMiddleware } from "../skills/middleware";
+import { interruptMessageMiddleware } from "../middleware/interrupt-message-middleware";
 import { createOrchestratorModel } from "./graph.model";
 import { createResearchAgentTool } from "../research-tools";
 import {
@@ -36,7 +37,7 @@ const identityGraphReadTool = createIdentityGraphReadTool({
     const graph = createNeo4jReadonlyGraph();
     return createGraphCypherChain({
       graph,
-      llm: new ChatOpenAI({ model: "gpt-5o-mini", temperature: 0, streaming: false }),
+      llm: new ChatOpenAI({ model: "gpt-5-mini", streaming: false }),
     });
   },
 });
@@ -45,7 +46,7 @@ const agent = createAgent({
   model: createOrchestratorModel(),
   tools: [researchAgentTool, identityGraphReadTool, identityGraphIngestTool],
   systemPrompt: prompt,
-  middleware: [skillMiddleware],
+  middleware: [interruptMessageMiddleware, skillMiddleware],
   name: "ELILEAI_Orchestrator_Agent",
 });
 

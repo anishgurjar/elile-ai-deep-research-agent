@@ -17,6 +17,9 @@ const validBody = {
   input: { messages: [{ role: "user", content: "hello" }] },
   stream_mode: ["messages", "updates"],
   config: {},
+  stream_resumable: true,
+  on_disconnect: "continue",
+  multitask_strategy: "enqueue",
 };
 
 beforeEach(() => {

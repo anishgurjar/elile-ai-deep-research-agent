@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuth } from "../../../../_middleware/auth";
-import { threadIdParam, runBody } from "../../../../_middleware/schemas";
+import { requireAuth } from "../../../../../_middleware/auth";
+import { threadIdParam } from "../../../../../_middleware/schemas";
+import { z } from "zod";
 
 export const runtime = "edge";
 
-type RouteParams = { params: Promise<{ threadId: string }> };
+type RouteParams = { params: Promise<{ threadId: string; runId: string }> };
 
 function resolveLangGraphBaseUrl(): string {
   const baseUrl =
@@ -15,34 +16,48 @@ function resolveLangGraphBaseUrl(): string {
   return baseUrl;
 }
 
-export async function POST(req: NextRequest, { params }: RouteParams) {
+const runIdParam = z.string().uuid("runId must be a valid UUID");
+
+export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await requireAuth();
     if (!authResult.authenticated) {
       return authResult.response;
     }
 
-    const parsedId = threadIdParam.safeParse((await params).threadId);
-    if (!parsedId.success) {
-      return NextResponse.json({ error: parsedId.error.issues }, { status: 400 });
+    const { threadId, runId } = await params;
+    const parsedThread = threadIdParam.safeParse(threadId);
+    if (!parsedThread.success) {
+      return NextResponse.json(
+        { error: parsedThread.error.issues },
+        { status: 400 },
+      );
     }
 
-    const parsed = runBody.safeParse(await req.json());
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    const parsedRun = runIdParam.safeParse(runId);
+    if (!parsedRun.success) {
+      return NextResponse.json({ error: parsedRun.error.issues }, { status: 400 });
     }
 
     const baseUrl = resolveLangGraphBaseUrl();
     const apiKey = process.env["LANGCHAIN_API_KEY"];
 
-    const upstream = await fetch(`${baseUrl}/threads/${parsedId.data}/runs/stream`, {
-      method: "POST",
+    const url = new URL(
+      `${baseUrl}/threads/${parsedThread.data}/runs/${parsedRun.data}/stream`,
+    );
+    for (const mode of ["messages", "updates", "events", "values"]) {
+      url.searchParams.append("stream_mode", mode);
+    }
+
+    const lastEventId = req.headers.get("Last-Event-ID");
+
+    const upstream = await fetch(url.toString(), {
+      method: "GET",
       headers: {
         Authorization: `Bearer ${authResult.token}`,
-        "Content-Type": "application/json",
         ...(apiKey ? { "x-api-key": apiKey } : {}),
+        ...(lastEventId ? { "Last-Event-ID": lastEventId } : {}),
       },
-      body: JSON.stringify(parsed.data),
     });
 
     return new NextResponse(upstream.body, {
@@ -63,3 +78,4 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     );
   }
 }
+

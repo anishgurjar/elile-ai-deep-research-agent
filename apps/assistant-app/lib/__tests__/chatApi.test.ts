@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { createThread, getThreadState, searchThreads, sendMessage, cancelRun } from "../chatApi";
+import {
+  createThread,
+  getThreadState,
+  searchThreads,
+  sendMessage,
+  cancelRun,
+  joinRunStream,
+} from "../chatApi";
 
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -61,7 +68,7 @@ describe("chatApi route-boundary behavior", () => {
       start(controller) {
         controller.enqueue(
           new TextEncoder().encode(
-            'event: messages/partial\ndata: [{"type":"ai","content":"hi"}]\n\n',
+            'id: 10\nevent: messages/partial\ndata: [{"type":"ai","content":"hi"}]\n\n',
           ),
         );
         controller.close();
@@ -93,10 +100,14 @@ describe("chatApi route-boundary behavior", () => {
           },
           stream_mode: ["messages", "updates", "events", "values"],
           config: {},
+          stream_resumable: true,
+          on_disconnect: "continue",
+          multitask_strategy: "enqueue",
         }),
       },
     );
     expect(first.value).toEqual({
+      id: "10",
       event: "messages/partial",
       data: [{ type: "ai", content: "hi" }],
     });
@@ -195,5 +206,47 @@ describe("chatApi route-boundary behavior", () => {
         body: JSON.stringify({ run_id: runId }),
       },
     );
+  });
+
+  it("joinRunStream calls the join stream route and yields events", async () => {
+    const runId = "660e8400-e29b-41d4-a716-446655440001";
+    const streamBody = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            'id: 42\nevent: messages/partial\ndata: [{"type":"ai","content":"joined"}]\n\n',
+          ),
+        );
+        controller.close();
+      },
+    });
+
+    mockFetch.mockResolvedValue(
+      new Response(streamBody, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      }),
+    );
+
+    const stream = await joinRunStream({
+      threadId: THREAD_ID,
+      runId,
+      lastEventId: "41",
+    });
+    const first = await stream.next();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `/api/threads/${THREAD_ID}/runs/${runId}/stream`,
+      {
+        method: "GET",
+        headers: { "Last-Event-ID": "41" },
+        signal: undefined,
+      },
+    );
+    expect(first.value).toEqual({
+      id: "42",
+      event: "messages/partial",
+      data: [{ type: "ai", content: "joined" }],
+    });
   });
 });

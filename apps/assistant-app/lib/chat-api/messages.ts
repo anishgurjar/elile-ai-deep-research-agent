@@ -7,17 +7,23 @@ import { assertOk } from "./utils";
 const STREAM_MODES = ["messages", "updates", "events", "values"] as const;
 
 type StreamEvent = {
+  id?: string;
   event: string;
   data: unknown;
 };
 
 function parseSseChunk(rawChunk: string): StreamEvent | null {
   const lines = rawChunk.split("\n");
+  let id: string | undefined;
   let event = "message";
   const dataLines: string[] = [];
 
   for (const line of lines) {
     if (line.startsWith(":")) {
+      continue;
+    }
+    if (line.startsWith("id:")) {
+      id = line.slice("id:".length).trim();
       continue;
     }
     if (line.startsWith("event:")) {
@@ -40,11 +46,13 @@ function parseSseChunk(rawChunk: string): StreamEvent | null {
 
   try {
     return {
+      ...(id ? { id } : {}),
       event,
       data: JSON.parse(dataText),
     };
   } catch {
     return {
+      ...(id ? { id } : {}),
       event,
       data: dataText,
     };
@@ -112,6 +120,9 @@ export class ChatMessagesClient {
         command: params.command,
         stream_mode: STREAM_MODES,
         config: {},
+        stream_resumable: true,
+        on_disconnect: "continue",
+        multitask_strategy: "enqueue",
       }),
       signal: params.signal,
     });
@@ -120,6 +131,32 @@ export class ChatMessagesClient {
 
     if (!res.body) {
       throw new Error("sendMessage failed: missing response stream");
+    }
+
+    return parseSseStream(res.body);
+  }
+
+  async joinRunStream(params: {
+    threadId: string;
+    runId: string;
+    lastEventId?: string;
+    signal?: AbortSignal;
+  }): Promise<AsyncGenerator<unknown>> {
+    const res = await fetch(
+      `/api/threads/${params.threadId}/runs/${params.runId}/stream`,
+      {
+        method: "GET",
+        headers: {
+          ...(params.lastEventId ? { "Last-Event-ID": params.lastEventId } : {}),
+        },
+        signal: params.signal,
+      },
+    );
+
+    await assertOk(res, "joinRunStream");
+
+    if (!res.body) {
+      throw new Error("joinRunStream failed: missing response stream");
     }
 
     return parseSseStream(res.body);
@@ -158,3 +195,4 @@ const defaultClient = new ChatMessagesClient();
 export const sendMessage = defaultClient.sendMessage.bind(defaultClient);
 export const sendMessageAndWait = defaultClient.sendMessageAndWait.bind(defaultClient);
 export const cancelRun = defaultClient.cancelRun.bind(defaultClient);
+export const joinRunStream = defaultClient.joinRunStream.bind(defaultClient);
