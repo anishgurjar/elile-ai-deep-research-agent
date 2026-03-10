@@ -3,7 +3,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { prompt } from "./prompt";
 import { webSearchTool } from "./tools";
 
-const modelName = process.env.ELILEAI_RESEARCH_MODEL ?? "gpt-5.2";
+const modelName = process.env.ELILEAI_RESEARCH_MODEL ?? "gpt-5-mini";
 
 const agent = createAgent({
   model: new ChatOpenAI({
