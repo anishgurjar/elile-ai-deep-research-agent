@@ -34,4 +34,11 @@ describe("orchestrator core prompt", () => {
     expect(prompt).not.toMatch(/load_skill/i);
     expect(prompt).not.toMatch(/Available Skills/i);
   });
+
+  test("directs scope seeding, off-scope leads, and final synthesis", () => {
+    expect(prompt).toMatch(/confirm/i);
+    expect(prompt).toMatch(/3[–-]4/);
+    expect(prompt).toMatch(/out_of_scope_leads/i);
+    expect(prompt).toMatch(/summar/i);
+  });
 });
