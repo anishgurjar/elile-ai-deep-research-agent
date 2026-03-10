@@ -36,7 +36,7 @@ describe("identity-graph-read-tool", () => {
 
     expect(invoke).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith({
-      query: "What do we already know about Ada Lovelace?",
+      query: "What do we already know about Ada Lovelace?\n\nSubject: Ada Lovelace",
     });
     expect(out).toContain("Ada Lovelace");
   });

@@ -8,8 +8,13 @@ import { ingestIdentityGraphFromResearch } from "./ingest-identity-graph";
 const NEO4J_URI = process.env.ELILEAI_NEO4J_URI ?? "bolt://localhost:7687";
 const NEO4J_USER = process.env.ELILEAI_NEO4J_USERNAME ?? "neo4j";
 const NEO4J_PASS = process.env.ELILEAI_NEO4J_PASSWORD ?? "neo4j_dev";
+const NEO4J_DB = process.env.ELILEAI_NEO4J_DATABASE ?? "neo4j";
 
-describe("ingestIdentityGraph (integration)", () => {
+const SAFE_TEST_DATABASE = "elileai_test";
+const describeIfSafe =
+  NEO4J_DB === SAFE_TEST_DATABASE ? describe : describe.skip;
+
+describeIfSafe("ingestIdentityGraph (integration)", () => {
   let driver: Driver;
   let graph: Neo4jGraph;
 
@@ -21,10 +26,11 @@ describe("ingestIdentityGraph (integration)", () => {
       url: NEO4J_URI,
       username: NEO4J_USER,
       password: NEO4J_PASS,
+      database: NEO4J_DB,
     });
 
-    // Clean test data
-    const session = driver.session();
+    // Clean test data (SAFE: only runs against the dedicated test database)
+    const session = driver.session({ database: NEO4J_DB });
     try {
       await session.run("MATCH (n) DETACH DELETE n");
     } finally {
@@ -79,7 +85,7 @@ describe("ingestIdentityGraph (integration)", () => {
     expect(result.relationshipCount).toBe(1);
 
     // Verify nodes exist in Neo4j
-    const session = driver.session();
+    const session = driver.session({ database: NEO4J_DB });
     try {
       const personResult = await session.run(
         "MATCH (n:Person) RETURN n.id AS id",

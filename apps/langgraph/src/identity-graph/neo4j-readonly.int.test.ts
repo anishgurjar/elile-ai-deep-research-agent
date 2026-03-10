@@ -12,9 +12,14 @@ describe("neo4j readonly user", () => {
     const driver = neo4j.driver(uri, neo4j.auth.basic(user, pass));
     const session = driver.session();
     try {
+      // Ensure we're connected; otherwise a network failure could masquerade as "readonly works".
+      await driver.getServerInfo();
+
       await expect(
         session.run("CREATE (n:ShouldNotWrite {id: 'x'}) RETURN n"),
-      ).rejects.toBeTruthy();
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/permission|write|authorized|denied/i),
+      });
     } finally {
       await session.close();
       await driver.close();

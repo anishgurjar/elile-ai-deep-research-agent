@@ -8,24 +8,31 @@ import {
 
 function makeFakeGraphDocument(nodeCount: number, relCount: number): GraphDocument {
   return new GraphDocument({
-    nodes: Array.from({ length: nodeCount }, (_, i) => ({
-      id: `node-${i}`,
-      type: "Person",
-    })),
-    relationships: Array.from({ length: relCount }, (_, i) => ({
-      source: { id: `node-0`, type: "Person" },
-      target: { id: `node-${i + 1}`, type: "Organization" },
-      type: "ASSOCIATED_WITH",
-    })),
+    nodes: Array.from({ length: nodeCount }, (_, i) => new Node({ id: `node-${i}`, type: "Person" })),
+    relationships: Array.from({ length: relCount }, (_, i) =>
+      new Relationship({
+        source: new Node({ id: "node-0", type: "Person" }),
+        target: new Node({ id: `node-${i + 1}`, type: "Organization" }),
+        type: "ASSOCIATED_WITH",
+      }),
+    ),
     source: new Document({ pageContent: "test" }),
   });
 }
 
 function makeGraph() {
   return {
-    addGraphDocuments: vi.fn(async () => undefined),
-    query: vi.fn(async () => []),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addGraphDocuments: vi.fn<any>(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    query: vi.fn<any>(async () => []),
   };
+}
+
+// Typed extractor to avoid unsafe index access across different vitest versions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function callArg<T>(mock: { mock: { calls: any[] } }, callIdx: number, argIdx: number): T {
+  return mock.mock.calls[callIdx][argIdx] as T;
 }
 
 describe("ingestIdentityGraphFromResearch", () => {
@@ -50,12 +57,12 @@ describe("ingestIdentityGraphFromResearch", () => {
     });
 
     expect(convertToGraphDocuments).toHaveBeenCalledTimes(1);
-    const docsArg = convertToGraphDocuments.mock.calls[0][0];
+    const docsArg = callArg<Document[]>(convertToGraphDocuments, 0, 0);
     expect(docsArg).toHaveLength(1);
-    expect(docsArg[0].pageContent).toContain("Ada Lovelace");
-    expect(docsArg[0].metadata.subject).toBe("Ada Lovelace");
-    expect(docsArg[0].metadata.threadId).toBe("t1");
-    expect(docsArg[0].metadata.scope).toBe("identity");
+    expect(docsArg[0]!.pageContent).toContain("Ada Lovelace");
+    expect(docsArg[0]!.metadata.subject).toBe("Ada Lovelace");
+    expect(docsArg[0]!.metadata.threadId).toBe("t1");
+    expect(docsArg[0]!.metadata.scope).toBe("identity");
 
     expect(graph.addGraphDocuments).toHaveBeenCalledTimes(1);
     expect(graph.addGraphDocuments).toHaveBeenCalledWith([fakeGraphDoc], {
@@ -97,12 +104,12 @@ describe("ingestIdentityGraphFromResearch", () => {
       },
     });
 
-    const written = graph.addGraphDocuments.mock.calls[0][0][0];
-    expect(written.nodes[0].type).toBe("Person");
-    expect(written.nodes[1].type).toBe("Organization");
-    expect(written.relationships[0].type).toBe("ASSOCIATED_WITH");
-    expect(written.relationships[0].source.type).toBe("Person");
-    expect(written.relationships[0].target.type).toBe("Organization");
+    const written = callArg<GraphDocument[]>(graph.addGraphDocuments, 0, 0)[0]!;
+    expect(written.nodes[0]!.type).toBe("Person");
+    expect(written.nodes[1]!.type).toBe("Organization");
+    expect(written.relationships[0]!.type).toBe("ASSOCIATED_WITH");
+    expect(written.relationships[0]!.source.type).toBe("Person");
+    expect(written.relationships[0]!.target.type).toBe("Organization");
   });
 
   test("normalizes new types to correct casing conventions", async () => {
@@ -132,9 +139,9 @@ describe("ingestIdentityGraphFromResearch", () => {
       existingSchema: { nodeLabels: ["Person"], relationshipTypes: [] },
     });
 
-    const written = graph.addGraphDocuments.mock.calls[0][0][0];
-    expect(written.nodes[0].type).toBe("Award");
-    expect(written.relationships[0].type).toBe("RECEIVED_AWARD");
+    const written = callArg<GraphDocument[]>(graph.addGraphDocuments, 0, 0)[0]!;
+    expect(written.nodes[0]!.type).toBe("Award");
+    expect(written.relationships[0]!.type).toBe("RECEIVED_AWARD");
   });
 
   test("handles multiple research results", async () => {
@@ -158,7 +165,7 @@ describe("ingestIdentityGraphFromResearch", () => {
       existingSchema: { nodeLabels: [], relationshipTypes: [] },
     });
 
-    const docsArg = convertToGraphDocuments.mock.calls[0][0];
+    const docsArg = callArg<Document[]>(convertToGraphDocuments, 0, 0);
     expect(docsArg).toHaveLength(2);
     expect(result.nodeCount).toBe(4);
     expect(result.relationshipCount).toBe(2);
@@ -179,7 +186,7 @@ describe("ingestIdentityGraphFromResearch", () => {
       existingSchema: { nodeLabels: [], relationshipTypes: [] },
     });
 
-    const doc = convertToGraphDocuments.mock.calls[0][0][0];
+    const doc = callArg<Document[]>(convertToGraphDocuments, 0, 0)[0]!;
     expect(doc.metadata.scope).toBe("general");
     expect(doc.metadata.angle).toBe("unknown");
   });

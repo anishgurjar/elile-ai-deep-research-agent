@@ -48,13 +48,20 @@ export function createIdentityGraphReadTool(
 
       let result: Record<string, unknown>;
       try {
-        result = await chain.invoke({ query: input.question });
+        const query = `${input.question}\n\nSubject: ${input.subject}`;
+        result = await chain.invoke({ query });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         return [
           `Identity graph query failed: ${msg}. The graph may be empty or the generated Cypher was invalid. Proceed with web research instead.`,
           { tool: "identity_graph_read", error: msg, subject: input.subject },
         ] as const;
+      } finally {
+        try {
+          await chain.close?.();
+        } catch {
+          // Best-effort cleanup — do not fail the tool output.
+        }
       }
 
       const rawResult = result.result;

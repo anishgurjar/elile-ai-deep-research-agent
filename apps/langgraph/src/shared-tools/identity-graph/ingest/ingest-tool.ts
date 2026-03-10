@@ -46,27 +46,38 @@ export function createIdentityGraphIngestTool(
         ] as const;
       }
 
-      const transformer = await options.createTransformer(graph);
+      try {
+        const transformer = await options.createTransformer(graph);
 
-      const result = await ingestIdentityGraphFromResearch({
-        subject: input.subject,
-        threadId: input.threadId,
-        researchResults: input.researchResults,
-        graph,
-        transformer,
-      });
-
-      const content = `Identity graph ingestion complete: ${result.nodeCount} nodes, ${result.relationshipCount} relationships written for "${input.subject}".`;
-
-      return [
-        content,
-        {
-          tool: "identity_graph_ingest",
+        const result = await ingestIdentityGraphFromResearch({
           subject: input.subject,
-          nodeCount: result.nodeCount,
-          relationshipCount: result.relationshipCount,
-        },
-      ] as const;
+          threadId: input.threadId,
+          researchResults: input.researchResults,
+          graph,
+          transformer,
+        });
+
+        const content = `Identity graph ingestion complete: ${result.nodeCount} nodes, ${result.relationshipCount} relationships written for "${input.subject}".`;
+
+        return [
+          content,
+          {
+            tool: "identity_graph_ingest",
+            subject: input.subject,
+            nodeCount: result.nodeCount,
+            relationshipCount: result.relationshipCount,
+          },
+        ] as const;
+      } finally {
+        const maybeClose = (graph as unknown as { close?: () => Promise<void> | void }).close;
+        if (typeof maybeClose === "function") {
+          try {
+            await maybeClose();
+          } catch {
+            // Best-effort cleanup — do not fail the tool output.
+          }
+        }
+      }
     },
     {
       name: "identity_graph_ingest",

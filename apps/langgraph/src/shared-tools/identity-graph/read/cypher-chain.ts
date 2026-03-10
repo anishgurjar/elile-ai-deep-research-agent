@@ -5,6 +5,7 @@ import type { BaseLanguageModelInterface } from "@langchain/core/language_models
 
 export interface ChainLike {
   invoke(input: Record<string, string>): Promise<Record<string, unknown>>;
+  close?: () => Promise<void> | void;
 }
 
 export interface CreateGraphCypherChainOptions {
@@ -52,11 +53,15 @@ export async function createGraphCypherChain(
   opts: CreateGraphCypherChainOptions,
 ): Promise<ChainLike> {
   await opts.graph.refreshSchema();
-  return GraphCypherQAChain.fromLLM({
+  const chain = GraphCypherQAChain.fromLLM({
     graph: opts.graph,
     llm: opts.llm,
     cypherPrompt: IDENTITY_GRAPH_CYPHER_PROMPT,
     returnDirect: true,
     returnIntermediateSteps: true,
   });
+  return {
+    invoke: (input) => chain.invoke(input),
+    close: () => opts.graph.close(),
+  };
 }
