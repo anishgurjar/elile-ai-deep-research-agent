@@ -1,11 +1,17 @@
 import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
 import { useMessage } from "@assistant-ui/react";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon, Loader2 } from "lucide-react";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  Loader2,
+} from "lucide-react";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents } from "@/components/assistant-ui/markdown-text";
+import { parsePlannerToolResult } from "@/lib/planner/parse-planner-tool-result";
 
 interface ToolCallPart {
   type: "tool-call";
@@ -167,11 +173,7 @@ function SubagentCallOutput({
   );
 }
 
-function SubagentToolCall({
-  allCalls,
-}: {
-  allCalls: ToolCallPart[];
-}) {
+function SubagentToolCall({ allCalls }: { allCalls: ToolCallPart[] }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const count = allCalls.length;
 
@@ -224,6 +226,89 @@ function SubagentToolCall({
   );
 }
 
+function PlannerToolCall({ allCalls }: { allCalls: ToolCallPart[] }) {
+  const firstCall = allCalls[0];
+  const hasResult =
+    firstCall?.result !== undefined && firstCall?.result !== null;
+  const resultText = resultToString(firstCall?.result);
+  const parsed =
+    parsePlannerToolResult(firstCall?.result) ??
+    parsePlannerToolResult(resultText);
+
+  return (
+    <div className="aui-tool-fallback-root mb-4 w-full rounded-lg border overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
+        {hasResult ? (
+          <CheckIcon className="size-4 shrink-0 text-emerald-500" />
+        ) : (
+          <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+        )}
+        <div className="flex-grow">
+          <div className="text-sm font-medium">Research Plan</div>
+          {parsed?.subject && (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Subject: {parsed.subject}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="px-4 py-3 space-y-3">
+        {!hasResult ? (
+          <div className="flex items-center gap-2 py-2 text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            <span className="text-sm italic">Planning…</span>
+          </div>
+        ) : parsed?.goals?.length ? (
+          <ul className="space-y-2">
+            {parsed.goals.slice(0, 7).map((g) => (
+              <li key={g.key} className="text-sm">
+                <div className="font-medium">{g.title}</div>
+                <div className="text-muted-foreground text-xs">{g.why}</div>
+              </li>
+            ))}
+          </ul>
+        ) : hasResult && resultText ? (
+          <div className="aui-md max-w-none text-sm leading-7 break-words text-foreground">
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {resultText}
+            </Markdown>
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">
+            No goals returned.
+          </div>
+        )}
+        {parsed?.questions?.length ? (
+          <div className="text-sm">
+            <div className="font-medium">Questions</div>
+            <ul className="list-disc pl-5 text-muted-foreground text-xs">
+              {parsed.questions.slice(0, 6).map((q) => (
+                <li key={q}>{q}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {parsed?.candidates?.length ? (
+          <div className="text-sm">
+            <div className="font-medium">Candidates</div>
+            <ul className="space-y-1.5 mt-1">
+              {parsed.candidates.slice(0, 4).map((c) => (
+                <li key={c.label} className="text-xs">
+                  <span className="font-medium">{c.label}</span>
+                  <span className="text-muted-foreground"> — {c.why}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export const ToolFallback: ToolCallMessagePartComponent = ({
   toolName,
   toolCallId,
@@ -248,8 +333,11 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   }, [content, toolName, toolCallId]);
 
   const isSubagentTool = toolName === "research_agent";
+  const isPlannerTool = toolName === "planner_agent";
   const isSearch =
-    !isSubagentTool && toolName.toLowerCase().includes("search");
+    !isSubagentTool &&
+    !isPlannerTool &&
+    toolName.toLowerCase().includes("search");
 
   const docNames = useMemo(() => {
     if (!isSearch) return [];
@@ -264,6 +352,10 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
 
   if (isSubagentTool) {
     return <SubagentToolCall allCalls={allCalls} />;
+  }
+
+  if (isPlannerTool) {
+    return <PlannerToolCall allCalls={allCalls} />;
   }
 
   const getFormattedName = (): string => {
