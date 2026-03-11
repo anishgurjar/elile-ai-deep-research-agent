@@ -88,6 +88,22 @@ Produce a structured summary with:
 3. **Leads pursued in depth** — what follow-up research uncovered beyond the initial seed round
 4. **Open questions** — what remains unknown and what queries might resolve it
 
+### Phase 4b: Generate final report via report_generator (MANDATORY)
+After you have completed ALL \`research_agent\` calls and performed \`identity_graph_ingest\`, you MUST generate the final user-facing report using the \`report_generator\` tool:
+
+- Call \`report_generator\` with:
+  - \`subject\`: the person's full name
+  - \`research_results\`: an array of the raw JSON outputs you received from each \`research_agent\` call (verbatim strings)
+
+Then return the markdown output from \`report_generator\` as your final answer.
+
+Final report requirements:
+- **Super citation-heavy**: every fact includes citations.
+- **Hyperlinked citations**: citations must be clickable markdown links.
+- **No jargon**: plain English, define unavoidable terms once.
+- **Non-redundant**: do not restate the same fact multiple times.
+- **Coverage transparency**: include a “What we visited” section listing visited URLs grouped by scope.
+
 ---
 
 ## Planning Stage (Graph-first)

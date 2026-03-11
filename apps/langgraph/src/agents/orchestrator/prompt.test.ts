@@ -41,4 +41,11 @@ describe("orchestrator core prompt", () => {
     expect(prompt).toMatch(/out_of_scope_leads/i);
     expect(prompt).toMatch(/summar/i);
   });
+
+  test("routes final report through report_generator (citation-heavy hyperlinks)", () => {
+    expect(prompt).toMatch(/report_generator/);
+    expect(prompt).toMatch(/citation-heavy/i);
+    expect(prompt).toMatch(/hyperlinked/i);
+    expect(prompt).toMatch(/What we visited/i);
+  });
 });
