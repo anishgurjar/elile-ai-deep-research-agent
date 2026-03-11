@@ -27,8 +27,6 @@ jobs:
         run: |
           cp .env.ci .env
           docker compose up -d --wait
-        env:
-          COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
 
       - name: Build shared libraries
         run: npx nx run-many --target=build --projects=tag:type:lib
@@ -45,5 +43,3 @@ jobs:
       - name: Stop services
         if: always()
         run: docker compose down -v
-        env:
-          COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml

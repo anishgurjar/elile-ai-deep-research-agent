@@ -18,7 +18,6 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
-
     const openai = new OpenAI({
       apiKey,
     });
@@ -37,14 +36,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ title: "New Conversation" });
     }
 
-    // Generate a concise 4-word title using gpt-5-mini
+    // Generate a concise 4-word title using gpt-4o-mini
     const completion = await openai.chat.completions.create({
-      model: "gpt-5-mini",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "Generate a concise, descriptive 4-word title for the following message. Only return the title, nothing else. Use title case.",
+            "Write a concise 4-word title in title case. Output ONLY the title text (no quotes, no punctuation, no extra words).",
         },
         {
           role: "user",
