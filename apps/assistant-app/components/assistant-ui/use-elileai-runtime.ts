@@ -173,6 +173,7 @@ export function useElileaiExternalRuntime() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const runIdRef = useRef<string | null>(null);
   const lastEventIdRef = useRef<string | null>(null);
+  const shouldGenerateTitleRef = useRef(false);
 
   const messagesByIdRef = useRef(new Map<string, RawMsg>());
   const parentMsgIdsRef = useRef(new Set<string>());
@@ -294,13 +295,18 @@ export function useElileaiExternalRuntime() {
       isStreamingRef.current = false;
       streamingMsgIdRef.current = null;
       syncLcMessages();
-
-      if (isFirstMessage && threadId) {
-        aui.threadListItem().generateTitle();
-      }
     },
     [aui, syncLcMessages],
   );
+
+  useEffect(() => {
+    if (!shouldGenerateTitleRef.current) return;
+    if (lcMessages.length === 0) return;
+    shouldGenerateTitleRef.current = false;
+    void Promise.resolve()
+      .then(() => aui.threadListItem().generateTitle())
+      .catch(() => {});
+  }, [aui, lcMessages]);
 
   useEffect(() => {
     if (!externalId || isStreamingRef.current) return;
@@ -538,6 +544,8 @@ export function useElileaiExternalRuntime() {
       messagesByIdRef.current.set(userMessageId, userMessage);
       parentMsgIdsRef.current.add(userMessageId);
       syncLcMessages();
+
+      if (isFirstMessage) shouldGenerateTitleRef.current = true;
 
       setIsRunning(true);
       isStreamingRef.current = true;
