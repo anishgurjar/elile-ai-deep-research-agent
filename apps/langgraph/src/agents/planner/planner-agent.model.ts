@@ -1,12 +1,12 @@
 import { ChatAnthropic } from "@langchain/anthropic";
 
-export function createOrchestratorModel() {
+export function createPlannerModel() {
   return new ChatAnthropic({
     model: "claude-sonnet-4-6",
-    streaming: true,
+    streaming: false,
     thinking: {
       type: "enabled",
-      budget_tokens: 10000,
+      budget_tokens: 3000,
     },
   });
 }

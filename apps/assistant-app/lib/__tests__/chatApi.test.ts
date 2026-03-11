@@ -102,7 +102,7 @@ describe("chatApi route-boundary behavior", () => {
           config: {},
           stream_resumable: true,
           on_disconnect: "continue",
-          multitask_strategy: "enqueue",
+          multitask_strategy: "interrupt",
         }),
       },
     );

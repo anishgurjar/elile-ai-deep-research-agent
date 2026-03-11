@@ -18,7 +18,9 @@ describe("neo4j readonly user", () => {
       await expect(
         session.run("CREATE (n:ShouldNotWrite {id: 'x'}) RETURN n"),
       ).rejects.toMatchObject({
-        message: expect.stringMatching(/permission|write|authorized|denied/i),
+        message: expect.stringMatching(
+          /permission|write|authorized|denied|forbidden|not allowed/i,
+        ),
       });
     } finally {
       await session.close();

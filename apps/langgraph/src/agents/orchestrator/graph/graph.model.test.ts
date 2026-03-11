@@ -9,7 +9,7 @@ describe("Orchestrator reasoning model config", () => {
     expect(model.streaming).toBe(true);
     expect(model.thinking).toEqual({
       type: "enabled",
-      budget_tokens: 5000,
+      budget_tokens: 10000,
     });
   });
 });

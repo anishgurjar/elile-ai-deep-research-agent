@@ -73,6 +73,27 @@ describe("ingestIdentityGraphFromResearch", () => {
     expect(result.relationshipCount).toBe(1);
   });
 
+  test("truncates large research text and marks it as truncated", async () => {
+    const graph = makeGraph();
+    const convertToGraphDocuments = vi.fn(async () => [makeFakeGraphDocument(0, 0)]);
+    const big = "x".repeat(50_000);
+
+    await ingestIdentityGraphFromResearch({
+      subject: "Big Person",
+      threadId: "t-big",
+      researchResults: [{ text: big }],
+      graph,
+      transformer: { convertToGraphDocuments },
+      existingSchema: { nodeLabels: [], relationshipTypes: [] },
+    });
+
+    expect(convertToGraphDocuments).toHaveBeenCalledTimes(1);
+    const docsArg = callArg<Document[]>(convertToGraphDocuments, 0, 0);
+    expect(docsArg).toHaveLength(1);
+    expect(docsArg[0]!.metadata.truncated).toBe(true);
+    expect((docsArg[0]!.pageContent ?? "").length).toBeLessThan(15_000);
+  });
+
   test("normalizes node and relationship casing against existing schema", async () => {
     const badCasingDoc = new GraphDocument({
       nodes: [
@@ -149,7 +170,10 @@ describe("ingestIdentityGraphFromResearch", () => {
     const doc2 = makeFakeGraphDocument(1, 0);
 
     const graph = makeGraph();
-    const convertToGraphDocuments = vi.fn(async () => [doc1, doc2]);
+    const convertToGraphDocuments = vi
+      .fn()
+      .mockResolvedValueOnce([doc1])
+      .mockResolvedValueOnce([doc2]);
 
     const results: ResearchResult[] = [
       { text: "Result 1", scope: "identity" },
@@ -165,8 +189,11 @@ describe("ingestIdentityGraphFromResearch", () => {
       existingSchema: { nodeLabels: [], relationshipTypes: [] },
     });
 
-    const docsArg = callArg<Document[]>(convertToGraphDocuments, 0, 0);
-    expect(docsArg).toHaveLength(2);
+    expect(convertToGraphDocuments).toHaveBeenCalledTimes(2);
+    const docsArg1 = callArg<Document[]>(convertToGraphDocuments, 0, 0);
+    const docsArg2 = callArg<Document[]>(convertToGraphDocuments, 1, 0);
+    expect(docsArg1).toHaveLength(1);
+    expect(docsArg2).toHaveLength(1);
     expect(result.nodeCount).toBe(4);
     expect(result.relationshipCount).toBe(2);
   });

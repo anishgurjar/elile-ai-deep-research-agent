@@ -15,6 +15,140 @@ describe("identity-graph-read-tool", () => {
     expect(tool.responseFormat).toBe("content_and_artifact");
   });
 
+  test("preferred path: queries graph directly and returns knowledge when match exists", async () => {
+    const graph = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            nodeId: 123,
+            labels: ["Person"],
+            props: { id: "Timothy Silas Prugh Overturf" },
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            labels: ["Person"],
+            node: { id: "Timothy Silas Prugh Overturf" },
+            connections: [{ relationship: "ASSOCIATED_WITH" }],
+          },
+        ]),
+      close: vi.fn(),
+    };
+
+    const tool = createIdentityGraphReadTool({
+      createGraph: async () => graph,
+    });
+
+    const out = await tool.invoke({
+      question: "What do we already know?",
+      threadId: "t1",
+      subject: "Timothy Silas Prugh Overturf",
+    });
+
+    expect(graph.query).toHaveBeenCalled();
+    expect(out).toContain("Graph knowledge");
+    expect(out).toContain("Timothy");
+  });
+
+  test("preferred path: matches when stored id is shorter than requested subject", async () => {
+    const graph = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            nodeId: 99,
+            labels: ["Person"],
+            props: { id: "Timothy Overturf" },
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            labels: ["Person"],
+            node: { id: "Timothy Overturf" },
+            connections: [],
+          },
+        ]),
+      close: vi.fn(),
+    };
+
+    const tool = createIdentityGraphReadTool({
+      createGraph: async () => graph,
+    });
+
+    const out = await tool.invoke({
+      question: "What do we already know?",
+      threadId: "t1",
+      subject: "Timothy Silas Prugh Overturf",
+    });
+
+    expect(out).toContain("Graph knowledge");
+    expect(out).toContain("Timothy Overturf");
+  });
+
+  test("explicit cypher path: runs provided MATCH query with params", async () => {
+    const graph = {
+      query: vi.fn(async () => [{ id: "Timothy Silas Prugh Overturf" }]),
+      close: vi.fn(),
+    };
+
+    const tool = createIdentityGraphReadTool({
+      createGraph: async () => graph,
+    });
+
+    const out = await tool.invoke({
+      question: "Load person node",
+      threadId: "t1",
+      subject: "Timothy Silas Prugh Overturf",
+      cypher:
+        "MATCH (p:Person) WHERE toLower(p.id) CONTAINS toLower($q) RETURN properties(p) AS p LIMIT 5",
+      params: { q: "overturf" },
+    });
+
+    expect(graph.query).toHaveBeenCalledTimes(1);
+    expect(out).toContain("Graph knowledge");
+  });
+
+  test("explicit cypher path: rejects unsafe cypher", async () => {
+    const graph = {
+      query: vi.fn(async () => []),
+      close: vi.fn(),
+    };
+
+    const tool = createIdentityGraphReadTool({
+      createGraph: async () => graph,
+    });
+
+    const out = await tool.invoke({
+      question: "bad",
+      threadId: "t1",
+      subject: "X",
+      cypher: "MATCH (n) DETACH DELETE n RETURN 1",
+    });
+
+    expect(out).toContain("rejected");
+    expect(graph.query).not.toHaveBeenCalled();
+  });
+
+  test("preferred path: returns no-knowledge message when nothing matches", async () => {
+    const graph = {
+      query: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+      close: vi.fn(),
+    };
+
+    const tool = createIdentityGraphReadTool({
+      createGraph: async () => graph,
+    });
+
+    const out = await tool.invoke({
+      question: "What do we already know?",
+      threadId: "t1",
+      subject: "Nobody",
+    });
+
+    expect(out).toContain("No existing knowledge found");
+  });
+
   test("invokes chain and returns summary + artifact", async () => {
     const invoke = vi.fn(async () => ({
       result: "Ada Lovelace was a mathematician.",
