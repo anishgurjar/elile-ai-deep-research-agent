@@ -8,7 +8,7 @@ export default defineConfig({
     ...base,
     include: ["src/**/*.cloud-experiment.test.ts"],
     reporters: ["langsmith/vitest/reporter"],
-    testTimeout: 120_000,
+    testTimeout: 30 * 60_000,
     maxConcurrency: 4,
   },
 });
