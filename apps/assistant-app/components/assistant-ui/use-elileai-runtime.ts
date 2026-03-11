@@ -191,7 +191,7 @@ export function useElileaiExternalRuntime() {
       stream: AsyncGenerator<{ id?: string; event: string; data: unknown }>,
       opts: { isFirstMessage: boolean },
     ) => {
-      const isFirstMessage = opts.isFirstMessage;
+      void opts;
 
       for await (const part of stream) {
         if (part.id && runIdRef.current) {
@@ -296,7 +296,7 @@ export function useElileaiExternalRuntime() {
       streamingMsgIdRef.current = null;
       syncLcMessages();
     },
-    [aui, syncLcMessages],
+    [syncLcMessages],
   );
 
   useEffect(() => {

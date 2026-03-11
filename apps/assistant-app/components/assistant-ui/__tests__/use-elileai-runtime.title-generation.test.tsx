@@ -32,6 +32,9 @@ vi.mock("@assistant-ui/react", () => {
 
 vi.mock("@/lib/chatApi", () => {
   async function* blockedStream() {
+    // satisfy eslint(require-yield) while still yielding nothing
+    const shouldYield = false;
+    if (shouldYield) yield { id: "0", event: "noop", data: null as unknown };
     await streamGate.promise;
   }
 
@@ -64,16 +67,17 @@ describe("useElileaiExternalRuntime title generation", () => {
   });
 
   it("should trigger generateTitle immediately on first user message", async () => {
-    let captured: any = null;
+    let captured: unknown = null;
     await act(async () => {
       render(<Harness onRuntime={(rt) => (captured = rt)} />);
     });
 
-    const onNew = captured?.onNew as (msg: any) => Promise<void>;
+    const runtime = captured as { onNew?: (msg: unknown) => Promise<void> } | null;
+    const onNew = runtime?.onNew;
     expect(typeof onNew).toBe("function");
 
     await act(async () => {
-      const p = onNew({
+      const p = onNew?.({
         content: [{ type: "text", text: "Hello there" }],
       });
 
