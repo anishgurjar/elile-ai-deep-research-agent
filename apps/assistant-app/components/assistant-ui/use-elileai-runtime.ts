@@ -45,6 +45,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function safeAbort(controller: AbortController | null) {
+  if (!controller) return;
+  try {
+    controller.abort();
+  } catch {
+    // Some environments surface AbortError synchronously. Never let cancel crash UI.
+  }
+}
+
+function isAbortError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "name" in e &&
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (e as any).name === "AbortError"
+  );
+}
+
 export function mergeStreamedAiMessage({
   previous,
   incoming,
@@ -85,7 +104,7 @@ export function mergeStreamedAiMessage({
   };
 }
 
-function hasAnyPendingToolCalls(byId: Map<string, RawMsg>): boolean {
+function findPendingToolCallIds(byId: Map<string, RawMsg>): string[] {
   const resolved = new Set<string>();
   for (const m of byId.values()) {
     if (m.type === "tool") {
@@ -94,15 +113,37 @@ function hasAnyPendingToolCalls(byId: Map<string, RawMsg>): boolean {
     }
   }
 
+  const pending: string[] = [];
   for (const m of byId.values()) {
     if (m.type === "ai" && Array.isArray(m.tool_calls)) {
       for (const tc of m.tool_calls as Array<RawMsg>) {
         const tcId = String(tc?.id ?? "");
-        if (tcId && !resolved.has(tcId)) return true;
+        if (tcId && !resolved.has(tcId)) pending.push(tcId);
       }
     }
   }
-  return false;
+  return pending;
+}
+
+function hasAnyPendingToolCalls(byId: Map<string, RawMsg>): boolean {
+  return findPendingToolCallIds(byId).length > 0;
+}
+
+function markPendingToolCallsCancelled(byId: Map<string, RawMsg>) {
+  const pending = findPendingToolCallIds(byId);
+  if (pending.length === 0) return;
+
+  const now = Date.now();
+  for (const tcId of pending) {
+    const syntheticId = `tool-cancelled-${tcId}-${now}`;
+    byId.set(syntheticId, {
+      type: "tool",
+      id: syntheticId,
+      tool_call_id: tcId,
+      content: "Cancelled",
+      artifact: { output: "Cancelled" },
+    });
+  }
 }
 
 function extractTextFromRawContent(content: unknown): string {
@@ -341,10 +382,9 @@ export function useElileaiExternalRuntime() {
               active_run_id: "",
             }).catch(() => {});
           } catch (e) {
-            console.error(
-              "[useElileaiRuntime] Failed to join stream:",
-              e,
-            );
+            if (!isAbortError(e)) {
+              console.error("[useElileaiRuntime] Failed to join stream:", e);
+            }
           } finally {
             setIsRunning(false);
             isStreamingRef.current = false;
@@ -363,7 +403,7 @@ export function useElileaiExternalRuntime() {
     })();
     return () => {
       cancelled = true;
-      abortControllerRef.current?.abort();
+      safeAbort(abortControllerRef.current);
       abortControllerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -490,6 +530,11 @@ export function useElileaiExternalRuntime() {
         id: userMessageId,
       };
 
+      // If a previous run left tool calls unresolved (e.g. interrupted or hung),
+      // our stream-merging logic can suppress new assistant messages forever.
+      // Mark them cancelled before starting a new run.
+      markPendingToolCallsCancelled(messagesByIdRef.current);
+
       messagesByIdRef.current.set(userMessageId, userMessage);
       parentMsgIdsRef.current.add(userMessageId);
       syncLcMessages();
@@ -549,17 +594,29 @@ export function useElileaiExternalRuntime() {
     onCancel: async () => {
       isStreamingRef.current = false;
       streamingMsgIdRef.current = null;
-
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
+      setIsRunning(false);
 
       const threadId = aui.threadListItem().getState().externalId;
       const runId = runIdRef.current;
+
+      // Ensure unresolved tool calls don't poison this thread.
+      markPendingToolCallsCancelled(messagesByIdRef.current);
+      syncLcMessages();
+
+      safeAbort(abortControllerRef.current);
+      abortControllerRef.current = null;
+
       if (threadId && runId) {
         try {
+          localStorage.removeItem(`lg:lastEventId:${threadId}:${runId}`);
+        } catch {
+          // ignore
+        }
+        void updateThreadMetadata(threadId, { active_run_id: "" }).catch(() => {});
+        try {
           await cancelRun({ threadId, runId });
-        } catch (e) {
-          console.error("[useElileaiRuntime] Failed to cancel run:", e);
+        } catch {
+          // Best-effort; aborting the stream is enough to unblock the UI.
         }
       }
       runIdRef.current = null;

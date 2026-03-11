@@ -50,7 +50,7 @@ export function MyAssistant() {
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
-                    <BreadcrumbPage>Assist</BreadcrumbPage>
+                    <BreadcrumbPage>Elie AI Deep Research</BreadcrumbPage>
                   </BreadcrumbItem>
                   <BreadcrumbSeparator />
                 </BreadcrumbList>

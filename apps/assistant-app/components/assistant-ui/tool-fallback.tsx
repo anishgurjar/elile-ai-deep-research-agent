@@ -35,7 +35,9 @@ function extractDocNames(calls: ToolCallPart[]): string[] {
     if (!args && call.argsText) {
       try {
         args = JSON.parse(call.argsText);
-      } catch {}
+      } catch {
+        // ignore invalid JSON
+      }
     }
 
     if (args?.slug && typeof args.slug === "string") {
@@ -74,7 +76,9 @@ function extractInstructions(argsText?: string): string | null {
     if (typeof instructions === "string" && instructions.trim().length > 0) {
       return instructions.trim();
     }
-  } catch {}
+  } catch {
+    // ignore invalid JSON
+  }
   return null;
 }
 
@@ -234,10 +238,14 @@ function PlannerToolCall({ allCalls }: { allCalls: ToolCallPart[] }) {
   const parsed =
     parsePlannerToolResult(firstCall?.result) ??
     parsePlannerToolResult(resultText);
+  const [isExpanded, setIsExpanded] = useState(true);
 
   return (
     <div className="aui-tool-fallback-root mb-4 w-full rounded-lg border overflow-hidden">
-      <div className="flex items-center gap-2 px-4 py-3 border-b bg-muted/30">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-muted/30 bg-muted/30"
+      >
         {hasResult ? (
           <CheckIcon className="size-4 shrink-0 text-emerald-500" />
         ) : (
@@ -251,60 +259,68 @@ function PlannerToolCall({ allCalls }: { allCalls: ToolCallPart[] }) {
             </div>
           )}
         </div>
-      </div>
-      <div className="px-4 py-3 space-y-3">
-        {!hasResult ? (
-          <div className="flex items-center gap-2 py-2 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            <span className="text-sm italic">Planning…</span>
-          </div>
-        ) : parsed?.goals?.length ? (
-          <ul className="space-y-2">
-            {parsed.goals.slice(0, 7).map((g) => (
-              <li key={g.key} className="text-sm">
-                <div className="font-medium">{g.title}</div>
-                <div className="text-muted-foreground text-xs">{g.why}</div>
-              </li>
-            ))}
-          </ul>
-        ) : hasResult && resultText ? (
-          <div className="aui-md max-w-none text-sm leading-7 break-words text-foreground">
-            <Markdown
-              remarkPlugins={[remarkGfm]}
-              components={markdownComponents}
-            >
-              {resultText}
-            </Markdown>
-          </div>
+        {isExpanded ? (
+          <ChevronUpIcon className="size-4 shrink-0 text-muted-foreground" />
         ) : (
-          <div className="text-sm text-muted-foreground">
-            No goals returned.
-          </div>
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
         )}
-        {parsed?.questions?.length ? (
-          <div className="text-sm">
-            <div className="font-medium">Questions</div>
-            <ul className="list-disc pl-5 text-muted-foreground text-xs">
-              {parsed.questions.slice(0, 6).map((q) => (
-                <li key={q}>{q}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {parsed?.candidates?.length ? (
-          <div className="text-sm">
-            <div className="font-medium">Candidates</div>
-            <ul className="space-y-1.5 mt-1">
-              {parsed.candidates.slice(0, 4).map((c) => (
-                <li key={c.label} className="text-xs">
-                  <span className="font-medium">{c.label}</span>
-                  <span className="text-muted-foreground"> — {c.why}</span>
+      </button>
+
+      {isExpanded && (
+        <div className="border-t px-4 py-3 space-y-3">
+          {!hasResult ? (
+            <div className="flex items-center gap-2 py-2 text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              <span className="text-sm italic">Planning…</span>
+            </div>
+          ) : parsed?.goals?.length ? (
+            <ul className="space-y-2">
+              {parsed.goals.slice(0, 7).map((g) => (
+                <li key={g.key} className="text-sm">
+                  <div className="font-medium">{g.title}</div>
+                  <div className="text-muted-foreground text-xs">{g.why}</div>
                 </li>
               ))}
             </ul>
-          </div>
-        ) : null}
-      </div>
+          ) : hasResult && resultText ? (
+            <div className="aui-md max-w-none text-sm leading-7 break-words text-foreground">
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {resultText}
+              </Markdown>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No goals returned.
+            </div>
+          )}
+          {parsed?.questions?.length ? (
+            <div className="text-sm">
+              <div className="font-medium">Questions</div>
+              <ul className="list-disc pl-5 text-muted-foreground text-xs">
+                {parsed.questions.slice(0, 6).map((q) => (
+                  <li key={q}>{q}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {parsed?.candidates?.length ? (
+            <div className="text-sm">
+              <div className="font-medium">Candidates</div>
+              <ul className="space-y-1.5 mt-1">
+                {parsed.candidates.slice(0, 4).map((c) => (
+                  <li key={c.label} className="text-xs">
+                    <span className="font-medium">{c.label}</span>
+                    <span className="text-muted-foreground"> — {c.why}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

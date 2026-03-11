@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireAuth } from "../_middleware/auth";
 
 export const runtime = "edge";
 
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuth();
+    if (!authResult.authenticated) {
+      return authResult.response;
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "OPENAI_API_KEY is not configured" },
+        { status: 500 },
+      );
+    }
+
     const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey,
     });
 
     const { message } = await req.json();
@@ -18,9 +32,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate a concise 4-word title using GPT-4o-mini
+    const trimmed = message.trim();
+    if (trimmed.length === 0) {
+      return NextResponse.json({ title: "New Conversation" });
+    }
+
+    // Generate a concise 4-word title using gpt-5-mini
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-5-mini",
       messages: [
         {
           role: "system",
@@ -29,7 +48,7 @@ export async function POST(req: NextRequest) {
         },
         {
           role: "user",
-          content: message,
+          content: trimmed.slice(0, 4000),
         },
       ],
       max_tokens: 20,

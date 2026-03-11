@@ -5,7 +5,6 @@ import { createPlannerAgentTool } from "../planner-tools";
 import {
   createIdentityGraphIngestTool,
   createIdentityGraphReadTool,
-  createGraphCypherChain,
 } from "../../../shared-tools/identity-graph";
 import { runResearchAgent } from "../../research/research-agent";
 import { runPlannerAgent } from "../../planner/planner-agent";
@@ -30,7 +29,7 @@ export const identityGraphIngestTool = createIdentityGraphIngestTool({
     const schema = await fetchExistingSchema(graph);
     return new LLMGraphTransformer({
       llm: new ChatOpenAI({
-        model: "gpt-5-mini",
+        model: "gpt-4o-mini",
         streaming: false,
       }),
       prompt: buildSchemaAwarePrompt(schema),
@@ -40,16 +39,7 @@ export const identityGraphIngestTool = createIdentityGraphIngestTool({
 });
 
 export const identityGraphReadTool = createIdentityGraphReadTool({
-  createChain: async () => {
-    const graph = createNeo4jReadonlyGraph();
-    return createGraphCypherChain({
-      graph,
-      llm: new ChatOpenAI({
-        model: "gpt-5-mini",
-        streaming: false,
-      }),
-    });
-  },
+  createGraph: () => createNeo4jReadonlyGraph(),
 });
 
 export const orchestratorTools = [

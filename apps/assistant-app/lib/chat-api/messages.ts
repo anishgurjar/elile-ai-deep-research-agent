@@ -122,7 +122,9 @@ export class ChatMessagesClient {
         config: {},
         stream_resumable: true,
         on_disconnect: "continue",
-        multitask_strategy: "enqueue",
+        // If a previous run is stuck (e.g. long tool call), enqueueing means the user sees no response.
+        // Prefer interrupting so each new user message can proceed.
+        multitask_strategy: "interrupt",
       }),
       signal: params.signal,
     });

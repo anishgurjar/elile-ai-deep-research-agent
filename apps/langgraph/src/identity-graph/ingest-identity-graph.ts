@@ -35,27 +35,47 @@ export async function ingestIdentityGraphFromResearch(
 
   const schema = options.existingSchema ?? await fetchExistingSchema(graph);
 
-  const documents = researchResults.map(
-    (result, idx) =>
-      new Document({
-        pageContent: `Subject: ${subject}\n\n${result.text}`,
-        metadata: {
-          subject,
-          threadId,
-          scope: result.scope ?? "general",
-          angle: result.angle ?? "unknown",
-          chunkIndex: idx,
-        },
-      }),
-  );
+  const MAX_CHARS_PER_RESULT = 12_000;
+  const TRANSFORM_CONCURRENCY = 4;
+  const WRITE_BATCH_SIZE = 3;
 
-  const graphDocuments = await transformer.convertToGraphDocuments(documents);
+  const documents: Document[] = researchResults.map((result, idx) => {
+    const text = result.text ?? "";
+    return new Document({
+      pageContent: `Subject: ${subject}\n\n${text.slice(0, MAX_CHARS_PER_RESULT)}`,
+      metadata: {
+        subject,
+        threadId,
+        scope: result.scope ?? "general",
+        angle: result.angle ?? "unknown",
+        chunkIndex: idx,
+        truncated: text.length > MAX_CHARS_PER_RESULT,
+      },
+    });
+  });
+
+  const graphDocuments: Awaited<
+    ReturnType<typeof transformer.convertToGraphDocuments>
+  > = [];
+
+  // Convert concurrently (bounded) to reduce perceived wall-clock time.
+  for (let i = 0; i < documents.length; i += TRANSFORM_CONCURRENCY) {
+    const window = documents.slice(i, i + TRANSFORM_CONCURRENCY);
+
+    const convertedLists = await Promise.all(
+      window.map(async (doc) => transformer.convertToGraphDocuments([doc])),
+    );
+    for (const converted of convertedLists) {
+      graphDocuments.push(...converted);
+    }
+  }
 
   normalizeGraphDocuments(graphDocuments, schema);
 
-  await graph.addGraphDocuments(graphDocuments, {
-    includeSource: true,
-  });
+  for (let i = 0; i < graphDocuments.length; i += WRITE_BATCH_SIZE) {
+    const batch = graphDocuments.slice(i, i + WRITE_BATCH_SIZE);
+    await graph.addGraphDocuments(batch, { includeSource: true });
+  }
 
   const nodeCount = graphDocuments.reduce((sum, gd) => sum + gd.nodes.length, 0);
   const relationshipCount = graphDocuments.reduce(

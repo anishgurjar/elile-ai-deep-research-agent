@@ -1,5 +1,5 @@
 export const prompt = `
-# ELILEAI Planner Agent
+# Elile AI Planner Agent
 
 ## Mission
 You prepare an investigation plan for a NEW subject before expensive research runs.
