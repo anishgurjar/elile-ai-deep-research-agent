@@ -7,6 +7,8 @@ import {
 import { scoreFact } from "../report-generator/confidence";
 import { renderReportMarkdown } from "../report-generator/render-markdown";
 import { ResearchToolResultSchema } from "./research/contracts";
+import { stripMarkdownFences } from "../../shared/markdown";
+import { getErrorMessage } from "../../shared/errors";
 
 const InputSchema = z.object({
   subject: z.string().min(1),
@@ -16,13 +18,6 @@ const InputSchema = z.object({
    */
   research_results: z.array(z.string().min(2)).min(1),
 });
-
-function stripMarkdownFences(text: string): string {
-  const trimmed = text.trim();
-  const fencePattern = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/;
-  const match = trimmed.match(fencePattern);
-  return match ? match[1].trim() : trimmed;
-}
 
 function normalizeFactKey(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -97,10 +92,12 @@ export function createReportGeneratorTool(options: {
       };
 
       let draft: ReportGeneratorDraft | null = null;
+      let parseError: string | undefined;
       try {
         draft = ReportGeneratorDraftSchema.parse(JSON.parse(cleaned));
-      } catch {
+      } catch (error) {
         // Ignore — we fall back below.
+        parseError = getErrorMessage(error);
       }
 
       // Ensure the model didn't drop facts: if it did, prefer deterministic output.
@@ -123,6 +120,7 @@ export function createReportGeneratorTool(options: {
           subject: input.subject,
           parsedResearchCount: parsedResults.length,
           usedFallbackDraft: !looksComplete,
+          ...(parseError ? { parse_error: parseError } : {}),
         },
       ] as const;
     },

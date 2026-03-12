@@ -2,7 +2,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 
 export function createOrchestratorModel() {
   return new ChatAnthropic({
-    model: "claude-sonnet-4-6",
+    model: process.env.ELILEAI_ORCHESTRATOR_MODEL ?? "claude-sonnet-4-6",
     streaming: true,
     thinking: {
       type: "enabled",

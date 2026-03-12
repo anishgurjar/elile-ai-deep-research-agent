@@ -7,15 +7,6 @@ export const runtime = "edge";
 
 type RouteParams = { params: Promise<{ threadId: string; runId: string }> };
 
-function resolveLangGraphBaseUrl(): string {
-  const baseUrl =
-    process.env["LANGGRAPH_API_URL"] ?? process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"];
-  if (!baseUrl) {
-    throw new Error("LANGGRAPH_API_URL is not configured");
-  }
-  return baseUrl;
-}
-
 const runIdParam = z.string().uuid("runId must be a valid UUID");
 
 export async function GET(req: NextRequest, { params }: RouteParams) {
@@ -39,8 +30,10 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: parsedRun.error.issues }, { status: 400 });
     }
 
-    const baseUrl = resolveLangGraphBaseUrl();
-    const apiKey = process.env["LANGCHAIN_API_KEY"];
+    const baseUrl = process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"];
+    if (!baseUrl) {
+      throw new Error("NEXT_PUBLIC_LANGGRAPH_API_URL is not configured");
+    }
 
     const url = new URL(
       `${baseUrl}/threads/${parsedThread.data}/runs/${parsedRun.data}/stream`,
@@ -55,7 +48,6 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       method: "GET",
       headers: {
         Authorization: `Bearer ${authResult.token}`,
-        ...(apiKey ? { "x-api-key": apiKey } : {}),
         ...(lastEventId ? { "Last-Event-ID": lastEventId } : {}),
       },
     });
@@ -71,10 +63,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
+    const message =
+      e && typeof e === "object" && "message" in e
+        ? String((e as { message?: unknown }).message)
+        : "Internal server error";
     return NextResponse.json(
-      { error: error.message },
-      { status: error.status ?? 500 },
+      { error: message },
+      { status: 500 },
     );
   }
 }

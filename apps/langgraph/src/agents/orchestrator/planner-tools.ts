@@ -1,6 +1,8 @@
 import { tool } from "langchain";
 import { z } from "zod";
 import { PlannerToolResultSchema } from "../planner/contracts";
+import { stripMarkdownFences } from "../../shared/markdown";
+import { getErrorMessage } from "../../shared/errors";
 
 const PlannerAgentInputSchema = z.object({
   instructions: z
@@ -10,13 +12,6 @@ const PlannerAgentInputSchema = z.object({
 });
 
 export type RunPlannerAgentFn = (instructions: string) => Promise<string>;
-
-function stripMarkdownFences(text: string): string {
-  const trimmed = text.trim();
-  const fencePattern = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/;
-  const match = trimmed.match(fencePattern);
-  return match ? match[1].trim() : trimmed;
-}
 
 export function createPlannerAgentTool(options: {
   runPlannerAgent: RunPlannerAgentFn;
@@ -29,10 +24,12 @@ export function createPlannerAgentTool(options: {
       const cleaned = stripMarkdownFences(output);
 
       let parsed: z.infer<typeof PlannerToolResultSchema> | null = null;
+      let parseError: string | undefined;
       try {
         parsed = PlannerToolResultSchema.parse(JSON.parse(cleaned));
-      } catch {
+      } catch (error) {
         // Validation failed — return raw output so orchestrator can still use it
+        parseError = getErrorMessage(error);
       }
 
       return [
@@ -41,6 +38,7 @@ export function createPlannerAgentTool(options: {
           tool: "planner_agent",
           instructions: input.instructions,
           ...(parsed ? { output: parsed } : {}),
+          ...(parseError ? { parse_error: parseError } : {}),
         },
       ] as const;
     },

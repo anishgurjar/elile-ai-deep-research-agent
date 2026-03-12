@@ -1,73 +1,158 @@
-# ELILEAI Monorepo
+# ELILEAI Deep Research Agent (Demo)
 
-Unified repository for ELILEAI Assist services.
+This repo contains a **deep research agent** created for **ELILEAI** as a demo/take-home style project. It’s a small multi-agent system that:
 
-## Quick Start
+- **Plans** a research approach for a person (disambiguation + scoped sub-queries)
+- **Checks an identity graph** (Neo4j) to avoid redundant web research
+- **Runs parallel web research sub-agents** and collects structured findings
+- **Persists the results** back into the identity graph
+- **Generates a citation-heavy report** as the final response
+
+The monorepo is an **Nx TypeScript workspace** with:
+- `apps/assistant-app`: Next.js UI + internal API routes
+- `apps/langgraph`: LangGraph backend (orchestrator + tools)
+- `packages/*`: shared libraries (logger, test utilities)
+
+## Quickstart (reviewer-friendly)
 
 ### Prerequisites
 - Node.js 20+
-- Docker
+- Docker (for Postgres + Neo4j)
 
-### First-Time Setup
+### First-time setup
 
 ```bash
-# 1. Create your .env from the template
 cp .env.example .env
-# 2. Fill in your API keys in .env
+# fill in secrets in .env
 
-# 3. Run setup (installs deps, builds libraries, starts infra)
 npm run setup
 ```
 
-### Daily Development
+### Run it locally
 
 ```bash
-npm run dev  # Starts all apps
-```
-
----
-
-## Manual Setup
-
-```bash
-npm run infra:up           # Start Docker containers
-npm install                # Install Node.js dependencies
-```
-
-### Running Specific Apps
-
-```bash
-# Run all apps in dev mode
 npm run dev
-
-# Run a specific app (using Nx directly)
-nx run langgraph:dev
-nx run assistant-app:dev
 ```
 
-### Common Commands
+- **UI**: `http://localhost:3000`
+- **LangGraph API** (default): `http://localhost:2024`
+- **Neo4j Browser** (default): `http://localhost:7474`
+
+## Common commands
 
 ```bash
-npm run dev                # Start all apps
-npm run build              # Build all projects
-npm run test               # Run all tests
-npm run lint               # Lint all projects
-npm run infra:up           # Start Docker containers
-npm run infra:down         # Stop Docker containers
-npm run graph              # View project dependency graph
+npm run dev            # start all dev servers
+npm run build          # build all projects
+npm run test           # run all tests
+npm run lint           # lint all projects
+npm run infra:up       # start docker services (postgres + neo4j)
+npm run infra:down     # stop docker services
 ```
 
----
+Targeted tests:
 
-## Structure
+```bash
+npx nx run assistant-app:test
+npx nx run langgraph:test:unit
+npx nx run langgraph:test:int
+```
+
+## Architecture (at a glance)
+
+### System overview
+
+```mermaid
+flowchart LR
+  U[User] --> UI[assistant-app<br/>(Next.js)]
+  UI --> API[Internal API routes<br/>/api/*]
+  API -->|SSE/HTTP| LG[langgraph<br/>(LangGraph orchestrator)]
+
+  LG -->|identity read/write| N4J[(Neo4j<br/>Identity Graph)]
+  LG -->|state/checkpoints| PG[(Postgres)]
+
+  LG -->|LLM calls| AN[Anthropic]
+  LG -->|LLM calls + web search| OA[OpenAI]
+  LG -->|optional traces/evals| LS[(LangSmith)]
+```
+
+### Deep research flow (planner → graph → sub-agents → report)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant User
+  participant UI as assistant-app (UI)
+  participant LG as langgraph (orchestrator)
+  participant Planner as planner_agent
+  participant Read as identity_graph_read
+  participant Research as research_agent (parallel)
+  participant Ingest as identity_graph_ingest
+  participant Report as report_generator
+
+  User->>UI: Ask about a person
+  UI->>LG: Start run (stream)
+  LG->>Planner: Plan research (scopes + disambiguation)
+  Planner-->>LG: JSON plan (ready / questions / candidates)
+
+  alt planner status != ready
+    LG-->>UI: Ask follow-ups / present candidates
+  else planner status == ready
+    LG->>Read: Query what we already know
+    Read-->>LG: Existing graph knowledge
+
+    alt Graph has sufficient info
+      LG-->>UI: Respond using graph knowledge
+    else Graph empty/partial
+      par 3–4 scoped calls
+        LG->>Research: Scope A (web research)
+        LG->>Research: Scope B (web research)
+        LG->>Research: Scope C (web research)
+      end
+      Research-->>LG: Structured findings (JSON)
+      LG->>Ingest: Persist findings into Neo4j
+      Ingest-->>LG: Write counts (nodes/edges)
+      LG->>Report: Synthesize report (citations)
+      Report-->>LG: Markdown report
+      LG-->>UI: Final answer
+    end
+  end
+```
+
+### Search strategy (parallel scopes → consolidation)
+
+```mermaid
+flowchart TB
+  Q[User question] --> P[planner_agent<br/>produces seed_scopes]
+  P -->|3–4 scopes| R1[research_agent<br/>scope A]
+  P -->|3–4 scopes| R2[research_agent<br/>scope B]
+  P -->|3–4 scopes| R3[research_agent<br/>scope C]
+
+  R1 --> F[Findings (structured JSON)]
+  R2 --> F
+  R3 --> F
+
+  F --> D[De-dupe + score facts<br/>(deterministic)]
+  D --> G[identity_graph_ingest]
+  D --> RG[report_generator]
+  RG --> OUT[Final markdown report]
+```
+
+## More details
+- **Architecture docs**:
+  - `docs/architecture/overview.md`
+  - `docs/architecture/agent-flow.md`
+  - `docs/architecture/identity-graph.md`
+- **Infrastructure notes**: `infrastructure/README.md`
+
+## Repo structure
 
 ```
 ├── apps/
 │   ├── langgraph/           # TypeScript backend (LangGraph)
 │   └── assistant-app/       # Next.js frontend
 ├── packages/
-│   ├── logger/              # Shared pino logger
+│   ├── logger/              # Shared logger
 │   └── shared-testing/      # Shared Vitest utilities
-├── infrastructure/          # Docker Compose config
-└── docs/                    # Architecture, plans
+├── infrastructure/          # Docker Compose + init scripts
+└── docs/                    # Architecture docs
 ```

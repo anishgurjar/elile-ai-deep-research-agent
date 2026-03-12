@@ -33,11 +33,13 @@
     },
     "test:unit": {
       "command": "vitest run --config vitest.unit.config.ts",
-      "options": { "cwd": "apps/langgraph" }
+      "options": { "cwd": "apps/langgraph" },
+      "dependsOn": ["^build"]
     },
     "test:int": {
       "command": "vitest run --config vitest.int.config.ts",
-      "options": { "cwd": "apps/langgraph" }
+      "options": { "cwd": "apps/langgraph" },
+      "dependsOn": ["^build"]
     },
     "cloud-experiments": {
       "command": "vitest run --config vitest.cloud-experiments.config.ts",

@@ -9,7 +9,8 @@ export function bucketForConfidence(c: number): ConfidenceBucket {
 function domainOf(url: string): string | null {
   try {
     return new URL(url).hostname.toLowerCase();
-  } catch {
+  } catch (error) {
+    void error;
     return null;
   }
 }

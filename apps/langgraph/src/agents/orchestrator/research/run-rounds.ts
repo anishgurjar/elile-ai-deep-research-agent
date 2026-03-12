@@ -123,8 +123,9 @@ export async function runResearchRounds(
       for (const url of result.visited_urls) {
         try {
           allDomains.push(new URL(url).hostname);
-        } catch {
-          // skip
+        } catch (error) {
+          void error;
+          // skip invalid URLs
         }
       }
     }

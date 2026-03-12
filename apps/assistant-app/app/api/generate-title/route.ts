@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { requireAuth } from "../_middleware/auth";
+import { getErrorMessage } from "@/lib/errors";
 
 export const runtime = "edge";
 
@@ -59,12 +60,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ title });
   } catch (error: unknown) {
-    const errorMessage =
-      error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to generate title", details: errorMessage },
+      { error: "Failed to generate title", details: getErrorMessage(error) },
       { status: 500 },
     );
   }

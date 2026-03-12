@@ -1,5 +1,6 @@
 import { tool } from "langchain";
 import { z } from "zod";
+import { createLogger } from "@elileai/logger";
 import {
   ingestIdentityGraphFromResearch,
 } from "../../../identity-graph/ingest-identity-graph";
@@ -32,6 +33,8 @@ export interface CreateIdentityGraphIngestToolOptions {
   createGraph?: GraphFactory;
   createTransformer?: TransformerFactory;
 }
+
+const logger = createLogger("langgraph").child("identity-graph").child("ingest-tool");
 
 export function createIdentityGraphIngestTool(
   options: CreateIdentityGraphIngestToolOptions = {},
@@ -73,8 +76,14 @@ export function createIdentityGraphIngestTool(
         if (typeof maybeClose === "function") {
           try {
             await maybeClose();
-          } catch {
+          } catch (error) {
             // Best-effort cleanup — do not fail the tool output.
+            logger.warn("Failed to close identity graph client; ignoring", {
+              error:
+                error && typeof error === "object" && "message" in error
+                  ? String((error as { message?: unknown }).message)
+                  : String(error),
+            });
           }
         }
       }

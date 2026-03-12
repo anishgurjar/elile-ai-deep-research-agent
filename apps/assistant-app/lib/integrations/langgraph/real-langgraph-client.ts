@@ -4,24 +4,14 @@ import type { LangGraphClient, RunRequestBody, StreamEvent } from "./types";
 export class RealLangGraphClient implements LangGraphClient {
   private readonly client: Client;
 
-  private static resolveBaseUrl(): string {
-    const baseUrl =
-      process.env["LANGGRAPH_API_URL"] ?? process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"];
-    if (!baseUrl) {
-      throw new Error("LANGGRAPH_API_URL is not configured");
-    }
-    return baseUrl;
-  }
-
   constructor(params: { userToken: string }) {
-    const baseUrl = RealLangGraphClient.resolveBaseUrl();
-    const apiKey = process.env["LANGCHAIN_API_KEY"];
+    const baseUrl = process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"];
+    if (!baseUrl) {
+      throw new Error("NEXT_PUBLIC_LANGGRAPH_API_URL is not configured");
+    }
     const headers: Record<string, string> = {
       Authorization: `Bearer ${params.userToken}`,
     };
-    if (apiKey) {
-      headers["x-api-key"] = apiKey;
-    }
 
     this.client = new Client({
       apiUrl: baseUrl,

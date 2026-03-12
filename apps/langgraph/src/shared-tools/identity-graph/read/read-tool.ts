@@ -48,7 +48,8 @@ function toText(v: unknown): string {
   if (v == null) return "";
   try {
     return JSON.stringify(v, null, 2);
-  } catch {
+  } catch (error) {
+    void error;
     return String(v);
   }
 }
@@ -94,7 +95,8 @@ function errToMessage(err: unknown): string {
   }
   try {
     return JSON.stringify(err);
-  } catch {
+  } catch (error) {
+    void error;
     return String(err);
   }
 }
@@ -351,7 +353,8 @@ export function createIdentityGraphReadTool(
         } finally {
           try {
             await graph.close?.();
-          } catch {
+          } catch (error) {
+            void error;
             // Best-effort cleanup — do not fail the tool output.
           }
         }
@@ -393,7 +396,8 @@ export function createIdentityGraphReadTool(
       } finally {
         try {
           await chain.close?.();
-        } catch {
+        } catch (error) {
+          void error;
           // Best-effort cleanup — do not fail the tool output.
         }
       }

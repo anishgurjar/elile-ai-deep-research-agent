@@ -1,37 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
 import type { BaseMessage } from "@langchain/core/messages";
-
-// We test the pure function by re-implementing the same logic used
-// inside the middleware, since the middleware wraps it in createMiddleware.
-function repairOrphanedToolCalls(messages: BaseMessage[]): BaseMessage[] {
-  const resolvedIds = new Set<string>();
-  for (const m of messages) {
-    const tcId = (m as unknown as Record<string, unknown>).tool_call_id;
-    if (typeof tcId === "string" && tcId) resolvedIds.add(tcId);
-  }
-
-  const result: BaseMessage[] = [];
-  for (const m of messages) {
-    result.push(m);
-    const toolCalls = (m as unknown as Record<string, unknown>).tool_calls;
-    if (!Array.isArray(toolCalls) || toolCalls.length === 0) continue;
-
-    for (const tc of toolCalls as Array<{ id?: string; name?: string }>) {
-      if (!tc.id || resolvedIds.has(tc.id)) continue;
-      result.push(
-        new ToolMessage({
-          content:
-            "This tool call was cancelled because the user interrupted the conversation.",
-          tool_call_id: tc.id,
-          name: tc.name ?? "unknown",
-        }),
-      );
-      resolvedIds.add(tc.id);
-    }
-  }
-  return result;
-}
+import { repairOrphanedToolCalls } from "./interrupt-message-middleware";
 
 describe("repairOrphanedToolCalls", () => {
   test("inserts synthetic ToolMessages for orphaned tool calls", () => {

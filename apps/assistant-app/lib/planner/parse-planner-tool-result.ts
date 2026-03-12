@@ -40,7 +40,8 @@ function tryParseJson(text: string): PlannerToolResult | null {
     const parsed = JSON.parse(text) as unknown;
     if (!isRecord(parsed)) return null;
     return validateShape(parsed);
-  } catch {
+  } catch (error) {
+    void error;
     return null;
   }
 }

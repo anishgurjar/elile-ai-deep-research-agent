@@ -16,6 +16,8 @@ import {
   updateThreadMetadata,
 } from "@/lib/chatApi";
 import { getAppendText } from "./elileai-adapter";
+import { log } from "@/lib/log";
+import { getErrorMessage } from "@/lib/errors";
 
 function generateId() {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -30,13 +32,15 @@ export type MinimalAiMessage = {
 };
 
 type RawMsg = Record<string, unknown>;
+type StoredMessage = LangChainMessage & RawMsg;
 
 function stringifyToolOutput(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
   try {
     return JSON.stringify(value, null, 2);
-  } catch {
+  } catch (error) {
+    void error;
     return String(value);
   }
 }
@@ -49,30 +53,36 @@ function safeAbort(controller: AbortController | null) {
   if (!controller) return;
   try {
     controller.abort();
-  } catch {
+  } catch (error) {
     // Some environments surface AbortError synchronously. Never let cancel crash UI.
+    log.debug("AbortController.abort threw; ignoring", {
+      error: getErrorMessage(error),
+    });
   }
 }
 
-function isAbortError(e: unknown): boolean {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    "name" in e &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (e as any).name === "AbortError"
-  );
+function getStringProp(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const rec = value as Record<string, unknown>;
+  const v = rec[key];
+  return typeof v === "string" ? v : undefined;
 }
 
-export function mergeStreamedAiMessage({
-  previous,
-  incoming,
-}: {
-  previous: MinimalAiMessage;
-  incoming: MinimalAiMessage;
-}): MinimalAiMessage {
-  const existingToolCalls = (previous.tool_calls ?? []) as Array<RawMsg>;
-  const incomingToolCalls = (incoming.tool_calls ?? []) as Array<RawMsg>;
+function isAbortError(e: unknown): boolean {
+  return getStringProp(e, "name") === "AbortError";
+}
+
+function asArrayOfRecords(value: unknown): RawMsg[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is RawMsg => typeof v === "object" && v !== null);
+}
+
+function mergeStreamedAiMessageInternal(
+  previous: RawMsg,
+  incoming: RawMsg,
+): RawMsg {
+  const existingToolCalls = asArrayOfRecords(previous.tool_calls);
+  const incomingToolCalls = asArrayOfRecords(incoming.tool_calls);
 
   const mergedToolCalls = [...existingToolCalls];
   for (const newTc of incomingToolCalls) {
@@ -83,9 +93,10 @@ export function mergeStreamedAiMessage({
     else mergedToolCalls.push(newTc);
   }
 
-  const additionalKwargs = incoming.additional_kwargs
-    ? { ...incoming.additional_kwargs }
-    : undefined;
+  const additionalKwargs =
+    incoming.additional_kwargs && typeof incoming.additional_kwargs === "object"
+      ? { ...(incoming.additional_kwargs as RawMsg) }
+      : undefined;
 
   if (
     additionalKwargs?.reasoning &&
@@ -102,6 +113,17 @@ export function mergeStreamedAiMessage({
     tool_calls: mergedToolCalls,
     additional_kwargs: additionalKwargs,
   };
+}
+
+export function mergeStreamedAiMessage({
+  previous,
+  incoming,
+}: {
+  previous: MinimalAiMessage;
+  incoming: MinimalAiMessage;
+}): MinimalAiMessage {
+  return mergeStreamedAiMessageInternal(previous as RawMsg, incoming as RawMsg) as
+    MinimalAiMessage;
 }
 
 function findPendingToolCallIds(byId: Map<string, RawMsg>): string[] {
@@ -166,7 +188,7 @@ function extractTextFromRawContent(content: unknown): string {
 
 export function useElileaiExternalRuntime() {
   const aui = useAui();
-  const [lcMessages, setLcMessages] = useState<LangChainMessage[]>([]);
+  const [lcMessages, setLcMessages] = useState<StoredMessage[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const externalId = aui.threadListItem().getState().externalId;
   const isStreamingRef = useRef(false);
@@ -181,7 +203,7 @@ export function useElileaiExternalRuntime() {
 
   const syncLcMessages = useCallback(() => {
     setLcMessages(
-      Array.from(messagesByIdRef.current.values()) as LangChainMessage[],
+      Array.from(messagesByIdRef.current.values()) as StoredMessage[],
     );
   }, []);
 
@@ -189,9 +211,9 @@ export function useElileaiExternalRuntime() {
     async (
       threadId: string,
       stream: AsyncGenerator<{ id?: string; event: string; data: unknown }>,
-      opts: { isFirstMessage: boolean },
+      _opts: { isFirstMessage: boolean },
     ) => {
-      void opts;
+      void _opts;
 
       for await (const part of stream) {
         if (part.id && runIdRef.current) {
@@ -209,7 +231,13 @@ export function useElileaiExternalRuntime() {
             lastEventIdRef.current = null;
             void updateThreadMetadata(threadId, {
               active_run_id: meta.run_id,
-            }).catch(() => {});
+            }).catch((error) => {
+              log.debug("Failed to persist active_run_id metadata", {
+                threadId,
+                runId: meta.run_id,
+                error: getErrorMessage(error),
+              });
+            });
           }
         }
 
@@ -264,11 +292,8 @@ export function useElileaiExternalRuntime() {
               if (type === "ai") {
                 const existing = byId.get(id);
                 if (existing) {
-                  const merged = mergeStreamedAiMessage({
-                    previous: existing as unknown as MinimalAiMessage,
-                    incoming: raw as unknown as MinimalAiMessage,
-                  });
-                  byId.set(id, merged as unknown as RawMsg);
+                  const merged = mergeStreamedAiMessageInternal(existing, raw);
+                  byId.set(id, merged);
                   streamingMsgIdRef.current = id;
                   didUpdate = true;
                 }
@@ -305,7 +330,11 @@ export function useElileaiExternalRuntime() {
     shouldGenerateTitleRef.current = false;
     void Promise.resolve()
       .then(() => aui.threadListItem().generateTitle())
-      .catch(() => {});
+      .catch((error) => {
+        log.debug("Thread title generation failed; ignoring", {
+          error: getErrorMessage(error),
+        });
+      });
   }, [aui, lcMessages]);
 
   useEffect(() => {
@@ -313,9 +342,13 @@ export function useElileaiExternalRuntime() {
     let cancelled = false;
     void (async () => {
       const state = await getThreadState(externalId);
-      const msgs =
-        (state as unknown as { values?: { messages?: LangChainMessage[] } })
-          ?.values?.messages ?? [];
+      const msgs = (() => {
+        if (!state || typeof state !== "object") return [];
+        const values = (state as RawMsg).values;
+        if (!values || typeof values !== "object") return [];
+        const messages = (values as RawMsg).messages;
+        return Array.isArray(messages) ? (messages as StoredMessage[]) : [];
+      })();
       if (!cancelled) {
         const msgsWithIds = (Array.isArray(msgs) ? msgs : []).map((m, idx) => {
           const msgWithId = m as RawMsg;
@@ -336,14 +369,21 @@ export function useElileaiExternalRuntime() {
         }
         messagesByIdRef.current = byId;
         parentMsgIdsRef.current = parentIds;
-        setLcMessages(msgsWithIds as LangChainMessage[]);
+        setLcMessages(msgsWithIds as StoredMessage[]);
       }
 
       try {
         const thread = await getThread(externalId);
-        const status = (thread as unknown as { status?: string }).status;
-        const activeRunId = (thread as unknown as { metadata?: RawMsg })
-          .metadata?.["active_run_id"];
+        const status =
+          thread && typeof thread === "object"
+            ? ((thread as RawMsg).status as string | undefined)
+            : undefined;
+        const activeRunId =
+          thread && typeof thread === "object"
+            ? ((thread as RawMsg).metadata as RawMsg | undefined)?.[
+                "active_run_id"
+              ]
+            : undefined;
 
         if (
           !cancelled &&
@@ -386,10 +426,19 @@ export function useElileaiExternalRuntime() {
 
             void updateThreadMetadata(externalId, {
               active_run_id: "",
-            }).catch(() => {});
+            }).catch((error) => {
+              log.debug("Failed to clear active_run_id metadata", {
+                threadId: externalId,
+                runId: activeRunId,
+                error: getErrorMessage(error),
+              });
+            });
           } catch (e) {
             if (!isAbortError(e)) {
-              console.error("[useElileaiRuntime] Failed to join stream:", e);
+              log.errorWithCause("Failed to join run stream", e, {
+                threadId: externalId,
+                runId: activeRunId,
+              });
             }
           } finally {
             setIsRunning(false);
@@ -401,10 +450,9 @@ export function useElileaiExternalRuntime() {
           }
         }
       } catch (e) {
-        console.error(
-          "[useElileaiRuntime] Failed to load thread status:",
-          e,
-        );
+        log.errorWithCause("Failed to load thread status", e, {
+          threadId: externalId,
+        });
       }
     })();
     return () => {
@@ -412,12 +460,11 @@ export function useElileaiExternalRuntime() {
       safeAbort(abortControllerRef.current);
       abortControllerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalId]);
+  }, [externalId, consumeStream, syncLcMessages]);
 
   const uiMessages = useMemo(() => {
     const toolResults = new Map<string, unknown>();
-    for (const msg of lcMessages as Array<RawMsg>) {
+    for (const msg of lcMessages) {
       if (msg.type === "tool") {
         const toolCallId = String(msg.tool_call_id ?? "");
         if (!toolCallId) continue;
@@ -506,24 +553,19 @@ export function useElileaiExternalRuntime() {
             .initialize();
           currentExternalId = newExternalId ?? remoteId;
         } catch (initError) {
-          console.error(
-            "[useElileaiRuntime] Failed to initialize thread:",
-            initError,
-          );
+          log.errorWithCause("Failed to initialize thread", initError);
           return;
         }
       }
 
       if (!currentExternalId) {
-        console.error(
-          "[useElileaiRuntime] No thread ID available after initialization",
-        );
+        log.error("No thread ID available after initialization");
         return;
       }
 
       const humanText = getAppendText(msg);
       if (!humanText) {
-        console.warn("[useElileaiRuntime] Empty message text, skipping");
+        log.warn("Empty message text; skipping send");
         return;
       }
 
@@ -573,18 +615,12 @@ export function useElileaiExternalRuntime() {
           { isFirstMessage },
         );
       } catch (error) {
-        const isAbort =
-          typeof error === "object" &&
-          error !== null &&
-          "name" in error &&
-          (error as { name: string }).name === "AbortError";
-        if (isAbort) {
+        if (isAbortError(error)) {
           return;
         }
-        console.error(
-          "[useElileaiRuntime] Error during message streaming:",
-          error,
-        );
+        log.errorWithCause("Error during message streaming", error, {
+          threadId: currentExternalId,
+        });
       } finally {
         setIsRunning(false);
         isStreamingRef.current = false;
@@ -593,7 +629,13 @@ export function useElileaiExternalRuntime() {
         if (currentExternalId && runIdRef.current) {
           void updateThreadMetadata(currentExternalId, {
             active_run_id: "",
-          }).catch(() => {});
+          }).catch((error) => {
+            log.debug("Failed to clear active_run_id metadata after run", {
+              threadId: currentExternalId,
+              runId: runIdRef.current,
+              error: getErrorMessage(error),
+            });
+          });
         }
         runIdRef.current = null;
         lastEventIdRef.current = null;
@@ -617,14 +659,31 @@ export function useElileaiExternalRuntime() {
       if (threadId && runId) {
         try {
           localStorage.removeItem(`lg:lastEventId:${threadId}:${runId}`);
-        } catch {
-          // ignore
+        } catch (error) {
+          log.debug("Failed to remove lastEventId from localStorage", {
+            threadId,
+            runId,
+          error: getErrorMessage(error),
+          });
         }
-        void updateThreadMetadata(threadId, { active_run_id: "" }).catch(() => {});
+        void updateThreadMetadata(threadId, { active_run_id: "" }).catch(
+          (error) => {
+            log.debug("Failed to clear active_run_id metadata on cancel", {
+              threadId,
+              runId,
+            error: getErrorMessage(error),
+            });
+          },
+        );
         try {
           await cancelRun({ threadId, runId });
-        } catch {
+        } catch (error) {
           // Best-effort; aborting the stream is enough to unblock the UI.
+          log.warn("Failed to cancel run; stream was aborted", {
+            threadId,
+            runId,
+          error: getErrorMessage(error),
+          });
         }
       }
       runIdRef.current = null;
