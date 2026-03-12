@@ -7,7 +7,7 @@ const evaluator = createLLMAsJudge({
   prompt: CORRECTNESS_PROMPT_TEMPLATE,
   feedbackKey: CORRECTNESS_KEY,
   model: "openai:gpt-5-mini",
-  continuous: false,
+  continuous: true,
   useReasoning: true,
 });
 
@@ -17,7 +17,7 @@ const evaluator = createLLMAsJudge({
  * @param question - The user's question
  * @param referenceAnswer - The expected correct answer
  * @param agentOutput - The agent's actual response
- * @returns Score of 0 or 1, where 1 is correct and 0 is incorrect
+ * @returns Score between 0 and 1 (interpretable as a percentage)
  */
 export async function evaluateCorrectness(
   question: string,
@@ -31,5 +31,8 @@ export async function evaluateCorrectness(
   });
 
   const score = result.score ?? 0;
-  return typeof score === "boolean" ? (score ? 1 : 0) : score;
+  const numericScore =
+    typeof score === "boolean" ? (score ? 1 : 0) : Number(score);
+  if (Number.isNaN(numericScore)) return 0;
+  return Math.max(0, Math.min(1, numericScore));
 }

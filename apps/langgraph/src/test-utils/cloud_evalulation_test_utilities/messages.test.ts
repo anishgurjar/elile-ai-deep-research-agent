@@ -28,4 +28,25 @@ describe("getLastMessageText", () => {
     });
     expect(res).toBe("ok");
   });
+
+  test("extracts text from Anthropic-style content blocks array", () => {
+    const res = getLastMessageText({
+      messages: [
+        {
+          content: [
+            { type: "text", text: "Hello " },
+            { type: "text", text: "world" },
+          ],
+        },
+      ],
+    });
+    expect(res).toBe("Hello world");
+  });
+
+  test("extracts text from a single text block object", () => {
+    const res = getLastMessageText({
+      messages: [{ content: { type: "text", text: "  hi  " } }],
+    });
+    expect(res).toBe("hi");
+  });
 });
