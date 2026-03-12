@@ -43,17 +43,17 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-  Q[User asks about a person] --> P[planner_agent]
-  P --> S{status == \"ready\"?}
+  Q["User asks about a person"] --> P[planner_agent]
+  P --> S{status == ready?}
 
-  S -- No --> Ask[Ask follow-ups / present candidates]
-  Ask --> Q2[User clarifies]
+  S -- No --> Ask["Ask follow-ups\npresent candidates"]
+  Ask --> Q2["User clarifies"]
   Q2 --> P
 
   S -- Yes --> G[identity_graph_read]
   G --> Hit{Graph has enough?}
-  Hit -- Yes --> A1[Answer from graph knowledge]
-  Hit -- No --> R[research_agent (3–4 parallel scopes)]
+  Hit -- Yes --> A1["Answer from graph knowledge"]
+  Hit -- No --> R["research_agent\n3-4 parallel scopes"]
   R --> I[identity_graph_ingest]
   I --> RG[report_generator]
   RG --> A2[Final report]
