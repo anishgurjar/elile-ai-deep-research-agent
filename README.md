@@ -13,7 +13,7 @@ The monorepo is an **Nx TypeScript workspace** with:
 - `apps/langgraph`: LangGraph backend (orchestrator + tools)
 - `packages/*`: shared libraries (logger, test utilities)
 
-## Quickstart (reviewer-friendly)
+## Quickstart
 
 ### Prerequisites
 - Node.js 20+
