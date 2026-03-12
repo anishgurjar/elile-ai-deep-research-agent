@@ -1,6 +1,8 @@
 import { tool } from "langchain";
 import { z } from "zod";
 import { ResearchToolResultSchema } from "./research/contracts";
+import { stripMarkdownFences } from "../../shared/markdown";
+import { getErrorMessage } from "../../shared/errors";
 
 const ResearchAgentInputSchema = z.object({
   instructions: z
@@ -10,13 +12,6 @@ const ResearchAgentInputSchema = z.object({
 });
 
 export type RunResearchAgentFn = (instructions: string) => Promise<string>;
-
-function stripMarkdownFences(text: string): string {
-  const trimmed = text.trim();
-  const fencePattern = /^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/;
-  const match = trimmed.match(fencePattern);
-  return match ? match[1].trim() : trimmed;
-}
 
 export function createResearchAgentTool(options: {
   runResearchAgent: RunResearchAgentFn;
@@ -34,10 +29,7 @@ export function createResearchAgentTool(options: {
         parsed = ResearchToolResultSchema.parse(JSON.parse(cleaned));
       } catch (error) {
         // Validation failed — return raw output so orchestrator can still use it
-        parseError =
-          error && typeof error === "object" && "message" in error
-            ? String((error as { message?: unknown }).message)
-            : String(error);
+        parseError = getErrorMessage(error);
       }
 
       return [

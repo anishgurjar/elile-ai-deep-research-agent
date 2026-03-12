@@ -11,6 +11,36 @@ interface ToolCallPart {
   args?: Record<string, unknown>;
 }
 
+type TextPart = {
+  type: "text";
+  text: string;
+};
+
+type MessagePart = ToolCallPart | TextPart | { type: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asMessageParts(value: unknown): MessagePart[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v): v is MessagePart => isRecord(v) && typeof v.type === "string");
+}
+
+function isTextPart(part: MessagePart): part is TextPart {
+  return part.type === "text" && "text" in part && typeof (part as TextPart).text === "string";
+}
+
+function isToolCallPart(part: MessagePart): part is ToolCallPart {
+  return (
+    part.type === "tool-call" &&
+    "toolCallId" in part &&
+    "toolName" in part &&
+    typeof (part as ToolCallPart).toolCallId === "string" &&
+    typeof (part as ToolCallPart).toolName === "string"
+  );
+}
+
 /**
  * Generates a human-readable description of what the AI is doing based on tool calls
  */
@@ -36,24 +66,19 @@ export const LoadingIndicator = () => {
     // Only show when message is running
     if (status?.type !== "running") return null;
 
-    const parts = content as unknown as Array<{ type: string }>;
-    if (!parts || !Array.isArray(parts)) return null;
+    const parts = asMessageParts(content);
+    if (parts.length === 0) return null;
 
     // Check if there's any text content yet
     const hasText = parts.some(
-      (part) =>
-        part.type === "text" &&
-        typeof (part as unknown as { text?: string }).text === "string" &&
-        (part as unknown as { text: string }).text.trim().length > 0
+      (part) => isTextPart(part) && part.text.trim().length > 0,
     );
 
     // If there's already text, don't show loading indicator
     if (hasText) return null;
 
     // Get tool calls
-    const toolCalls = parts.filter(
-      (part): part is ToolCallPart => part.type === "tool-call"
-    );
+    const toolCalls = parts.filter(isToolCallPart);
 
     return getLoadingMessage(toolCalls);
   }, [content, status]);

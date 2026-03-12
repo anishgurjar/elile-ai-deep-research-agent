@@ -12,6 +12,7 @@ import {
   updateThreadMetadata,
 } from "@/lib/chatApi";
 import { log } from "@/lib/log";
+import { getErrorMessage } from "@/lib/errors";
 import { createAssistantStream } from "assistant-stream";
 
 export function getAppendText(msg: AppendMessage) {
@@ -38,10 +39,7 @@ async function generateTitleFromMessage(message: string): Promise<string> {
     return data.title || "New Conversation";
   } catch (error) {
     log.warn("Title generation failed; falling back to default title", {
-      error:
-        error && typeof error === "object" && "message" in error
-          ? String((error as { message?: unknown }).message)
-          : String(error),
+      error: getErrorMessage(error),
     });
     return "New Conversation";
   }
@@ -114,10 +112,7 @@ export const ElileaiThreadListAdapter: RemoteThreadListAdapter = {
         } catch (error) {
           log.warn("Failed to persist generated title; continuing anyway", {
             threadId: remoteId,
-            error:
-              error && typeof error === "object" && "message" in error
-                ? String((error as { message?: unknown }).message)
-                : String(error),
+            error: getErrorMessage(error),
           });
         }
         controller.appendText(title);

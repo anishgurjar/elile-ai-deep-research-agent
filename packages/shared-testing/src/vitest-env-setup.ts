@@ -3,10 +3,10 @@ import path from "path";
 import dotenv from "dotenv";
 
 /**
- * Load environment variables for Vitest tests (local development only).
+ * Load environment variables for Vitest tests.
  *
- * In CI, environment variables are loaded by the CI pipeline (e.g., RWX load-env task).
- * This function loads .env.test for local development.
+ * This function loads `.env.test` for both local development and CI runs, without
+ * overriding variables that are already set by the environment.
  *
  * Strategy:
  * 1. Load project-level .env.test first (project-specific vars, if exists)
@@ -19,19 +19,14 @@ export function loadTestEnv(
   projectDir: string,
   monorepoRoot?: string
 ): void {
-  // Skip in CI - env vars are loaded by the CI pipeline
-  if (process.env.CI) {
-    return;
-  }
-
   const root = monorepoRoot ?? path.resolve(projectDir, "../..");
 
   // Project-level env (if exists)
   const projectEnvPath = path.join(projectDir, ".env.test");
   if (fs.existsSync(projectEnvPath)) {
-    dotenv.config({ path: projectEnvPath });
+    dotenv.config({ path: projectEnvPath, override: true });
   }
 
   // Root-level env (shared vars, won't override)
-  dotenv.config({ path: path.join(root, ".env.test") });
+  dotenv.config({ path: path.join(root, ".env.test"), override: true });
 }

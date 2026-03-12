@@ -6,15 +6,6 @@ export const runtime = "edge";
 
 type RouteParams = { params: Promise<{ threadId: string }> };
 
-function resolveLangGraphBaseUrl(): string {
-  const baseUrl =
-    process.env["LANGGRAPH_API_URL"] ?? process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"];
-  if (!baseUrl) {
-    throw new Error("LANGGRAPH_API_URL is not configured");
-  }
-  return baseUrl;
-}
-
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await requireAuth();
@@ -32,15 +23,16 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
 
-    const baseUrl = resolveLangGraphBaseUrl();
-    const apiKey = process.env["LANGCHAIN_API_KEY"];
+    const baseUrl = process.env["NEXT_PUBLIC_LANGGRAPH_API_URL"];
+    if (!baseUrl) {
+      throw new Error("NEXT_PUBLIC_LANGGRAPH_API_URL is not configured");
+    }
 
     const upstream = await fetch(`${baseUrl}/threads/${parsedId.data}/runs/stream`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${authResult.token}`,
         "Content-Type": "application/json",
-        ...(apiKey ? { "x-api-key": apiKey } : {}),
       },
       body: JSON.stringify(parsed.data),
     });
@@ -56,10 +48,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (e: unknown) {
-    const error = e as { message?: string; status?: number };
+    const message =
+      e && typeof e === "object" && "message" in e
+        ? String((e as { message?: unknown }).message)
+        : "Internal server error";
     return NextResponse.json(
-      { error: error.message },
-      { status: error.status ?? 500 },
+      { error: message },
+      { status: 500 },
     );
   }
 }

@@ -13,6 +13,7 @@ import remarkGfm from "remark-gfm";
 import { markdownComponents } from "@/components/assistant-ui/markdown-text";
 import { parsePlannerToolResult } from "@/lib/planner/parse-planner-tool-result";
 import { log } from "@/lib/log";
+import { getErrorMessage } from "@/lib/errors";
 
 interface ToolCallPart {
   type: "tool-call";
@@ -53,10 +54,7 @@ function extractDocNames(calls: ToolCallPart[]): string[] {
         log.debug("Invalid JSON in tool argsText; skipping doc slug extraction", {
           toolCallId: call.toolCallId,
           toolName: call.toolName,
-          error:
-            error && typeof error === "object" && "message" in error
-              ? String((error as { message?: unknown }).message)
-              : String(error),
+          error: getErrorMessage(error),
         });
       }
     }
@@ -86,10 +84,7 @@ const formatArgs = (argsText: string): React.ReactElement => {
     );
   } catch (error) {
     log.debug("Failed to parse tool args as JSON; rendering raw text", {
-      error:
-        error && typeof error === "object" && "message" in error
-          ? String((error as { message?: unknown }).message)
-          : String(error),
+      error: getErrorMessage(error),
     });
     return <pre className="whitespace-pre-wrap">{argsText}</pre>;
   }
@@ -105,10 +100,7 @@ function extractInstructions(argsText?: string): string | null {
     }
   } catch (error) {
     log.debug("Invalid JSON in tool argsText; skipping instruction extraction", {
-      error:
-        error && typeof error === "object" && "message" in error
-          ? String((error as { message?: unknown }).message)
-          : String(error),
+      error: getErrorMessage(error),
     });
   }
   return null;

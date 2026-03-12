@@ -9,7 +9,7 @@ import type { BaseMessage } from "@langchain/core/messages";
  * blocks". This middleware inserts synthetic ToolMessages for any
  * orphaned tool_calls so the model receives a valid message sequence.
  */
-function repairOrphanedToolCalls(messages: BaseMessage[]): BaseMessage[] {
+export function repairOrphanedToolCalls(messages: BaseMessage[]): BaseMessage[] {
   const resolvedIds = new Set<string>();
   for (const m of messages) {
     const tcId = (m as unknown as Record<string, unknown>).tool_call_id;

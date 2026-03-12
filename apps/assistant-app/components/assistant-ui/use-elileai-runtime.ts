@@ -17,6 +17,7 @@ import {
 } from "@/lib/chatApi";
 import { getAppendText } from "./elileai-adapter";
 import { log } from "@/lib/log";
+import { getErrorMessage } from "@/lib/errors";
 
 function generateId() {
   return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -55,10 +56,7 @@ function safeAbort(controller: AbortController | null) {
   } catch (error) {
     // Some environments surface AbortError synchronously. Never let cancel crash UI.
     log.debug("AbortController.abort threw; ignoring", {
-      error:
-        error && typeof error === "object" && "message" in error
-          ? String((error as { message?: unknown }).message)
-          : String(error),
+      error: getErrorMessage(error),
     });
   }
 }
@@ -237,10 +235,7 @@ export function useElileaiExternalRuntime() {
               log.debug("Failed to persist active_run_id metadata", {
                 threadId,
                 runId: meta.run_id,
-                error:
-                  error && typeof error === "object" && "message" in error
-                    ? String((error as { message?: unknown }).message)
-                    : String(error),
+                error: getErrorMessage(error),
               });
             });
           }
@@ -337,10 +332,7 @@ export function useElileaiExternalRuntime() {
       .then(() => aui.threadListItem().generateTitle())
       .catch((error) => {
         log.debug("Thread title generation failed; ignoring", {
-          error:
-            error && typeof error === "object" && "message" in error
-              ? String((error as { message?: unknown }).message)
-              : String(error),
+          error: getErrorMessage(error),
         });
       });
   }, [aui, lcMessages]);
@@ -438,10 +430,7 @@ export function useElileaiExternalRuntime() {
               log.debug("Failed to clear active_run_id metadata", {
                 threadId: externalId,
                 runId: activeRunId,
-                error:
-                  error && typeof error === "object" && "message" in error
-                    ? String((error as { message?: unknown }).message)
-                    : String(error),
+                error: getErrorMessage(error),
               });
             });
           } catch (e) {
@@ -644,10 +633,7 @@ export function useElileaiExternalRuntime() {
             log.debug("Failed to clear active_run_id metadata after run", {
               threadId: currentExternalId,
               runId: runIdRef.current,
-              error:
-                error && typeof error === "object" && "message" in error
-                  ? String((error as { message?: unknown }).message)
-                  : String(error),
+              error: getErrorMessage(error),
             });
           });
         }
@@ -677,10 +663,7 @@ export function useElileaiExternalRuntime() {
           log.debug("Failed to remove lastEventId from localStorage", {
             threadId,
             runId,
-            error:
-              error && typeof error === "object" && "message" in error
-                ? String((error as { message?: unknown }).message)
-                : String(error),
+          error: getErrorMessage(error),
           });
         }
         void updateThreadMetadata(threadId, { active_run_id: "" }).catch(
@@ -688,10 +671,7 @@ export function useElileaiExternalRuntime() {
             log.debug("Failed to clear active_run_id metadata on cancel", {
               threadId,
               runId,
-              error:
-                error && typeof error === "object" && "message" in error
-                  ? String((error as { message?: unknown }).message)
-                  : String(error),
+            error: getErrorMessage(error),
             });
           },
         );
@@ -702,10 +682,7 @@ export function useElileaiExternalRuntime() {
           log.warn("Failed to cancel run; stream was aborted", {
             threadId,
             runId,
-            error:
-              error && typeof error === "object" && "message" in error
-                ? String((error as { message?: unknown }).message)
-                : String(error),
+          error: getErrorMessage(error),
           });
         }
       }
