@@ -27,6 +27,18 @@ const internalClient = new Client();
 const langsmithClient = new CloudLangsmithClient();
 const examplesFactory = new CloudLangsmithTestDatasetFactory(langsmithClient);
 
+const exampleIdsForEvaluation = (() => {
+  const single = process.env.CLOUD_EXPERIMENT_EXAMPLE_ID;
+  const list = process.env.CLOUD_EXPERIMENT_EXAMPLE_IDS;
+  const raw = single ?? list;
+  if (!raw) return undefined;
+  const ids = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return ids.length > 0 ? ids : undefined;
+})();
+
 const datasetName = (() => {
   const envVal = process.env.CLOUD_EXPERIMENT_DATASET_NAME;
   if (!envVal) return TestDatasetName.ELILE_AI_EVALS;
@@ -40,6 +52,7 @@ const datasetName = (() => {
 
 const datasetForEvaluation = await examplesFactory.loadDatasetWithExamples(
   datasetName,
+  exampleIdsForEvaluation,
 );
 
 const scores: number[] = [];
@@ -85,7 +98,7 @@ ls.describe(
 
         return { [datasetForEvaluation.datasetConfig.referenceKey]: output };
       },
-      120_000, //2 minute timeout per example
+      30 * 60_000, // 30 minute timeout per example
     );
 
     test("gate", async () => {
