@@ -275,24 +275,14 @@ const ThreadSuggestions: FC = () => {
     <div className="aui-thread-welcome-suggestions grid w-full gap-2 pb-4 @md:grid-cols-2">
       {[
         {
-          title: "What can you help",
-          label: "me with today?",
-          action: "What can you help me with today?",
+          title: "Trigger deep research",
+          label: "on a new person",
+          action: "Trigger deep research on a new person",
         },
         {
-          title: "How do I get",
-          label: "started?",
-          action: "How do I get started?",
-        },
-        {
-          title: "Walk me through",
-          label: "your capabilities.",
-          action: "Walk me through your capabilities.",
-        },
-        {
-          title: "What kinds of questions",
-          label: "can you answer?",
-          action: "What kinds of questions can you answer?",
+          title: "Search the identity graph",
+          label: "for existing knowledge",
+          action: "Search the identity graph for existing knowledge",
         },
       ].map((suggestedAction, index) => (
         <m.div
