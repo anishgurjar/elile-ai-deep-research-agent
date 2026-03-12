@@ -344,7 +344,7 @@ export function useElileaiExternalRuntime() {
       const state = await getThreadState(externalId);
       const msgs = (() => {
         if (!state || typeof state !== "object") return [];
-        const values = (state as RawMsg).values;
+        const values = (state as unknown as RawMsg).values;
         if (!values || typeof values !== "object") return [];
         const messages = (values as RawMsg).messages;
         return Array.isArray(messages) ? (messages as StoredMessage[]) : [];
