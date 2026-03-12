@@ -29,10 +29,15 @@ export function createResearchAgentTool(options: {
       const cleaned = stripMarkdownFences(output);
 
       let parsed: z.infer<typeof ResearchToolResultSchema> | null = null;
+      let parseError: string | undefined;
       try {
         parsed = ResearchToolResultSchema.parse(JSON.parse(cleaned));
-      } catch {
+      } catch (error) {
         // Validation failed — return raw output so orchestrator can still use it
+        parseError =
+          error && typeof error === "object" && "message" in error
+            ? String((error as { message?: unknown }).message)
+            : String(error);
       }
 
       return [
@@ -41,6 +46,7 @@ export function createResearchAgentTool(options: {
           tool: "research_agent",
           instructions: input.instructions,
           ...(parsed ? { parsed } : {}),
+          ...(parseError ? { parse_error: parseError } : {}),
         },
       ] as const;
     },

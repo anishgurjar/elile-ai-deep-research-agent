@@ -1,6 +1,7 @@
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import type { Neo4jGraph } from "@langchain/community/graphs/neo4j_graph";
 import type { GraphDocument } from "@langchain/community/graphs/document";
+import { createLogger } from "@elileai/logger";
 
 export interface ExistingSchema {
   nodeLabels: string[];
@@ -8,6 +9,7 @@ export interface ExistingSchema {
 }
 
 const INTERNAL_LABELS = ["__Entity__", "Document", "Bloom_Perspective", "Bloom_Scene"];
+const logger = createLogger("langgraph").child("identity-graph").child("schema");
 
 /**
  * Queries Neo4j for existing node labels and relationship types.
@@ -30,7 +32,13 @@ export async function fetchExistingSchema(
         .filter((l) => !INTERNAL_LABELS.includes(l)),
       relationshipTypes: (relResult ?? []).map((r) => r.type),
     };
-  } catch {
+  } catch (error) {
+    logger.warn("Failed to fetch existing schema; falling back to empty", {
+      error:
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : String(error),
+    });
     return { nodeLabels: [], relationshipTypes: [] };
   }
 }

@@ -8,7 +8,7 @@ function extractTextFromContent(content: unknown): string | undefined {
     const parts = content
       .map((part) => extractTextFromContent(part))
       .filter((p): p is string => Boolean(p));
-    const joined = parts.join("").trim();
+    const joined = parts.join(" ").replace(/\s+/g, " ").trim();
     return joined.length > 0 ? joined : undefined;
   }
 
@@ -32,16 +32,15 @@ export function getLastMessageText(state: {
   messages?: Array<{ content?: unknown }>;
 }): string | undefined {
   const messages = state.messages ?? [];
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const msg = messages[i];
+  const msg = messages.length > 0 ? messages[messages.length - 1] : undefined;
+  if (!msg) return undefined;
 
-    const extracted = extractTextFromContent(msg?.content);
-    if (extracted) return extracted;
+  const extracted = extractTextFromContent(msg?.content);
+  if (extracted) return extracted;
 
-    // Fallback: keep prior behavior for any custom message types with a useful toString().
-    const text = msg?.content?.toString?.().trim?.();
-    if (typeof text === "string" && text.length > 0) return text;
-  }
+  // Fallback: keep prior behavior for any custom message types with a useful toString().
+  const text = msg?.content?.toString?.().trim?.();
+  if (typeof text === "string" && text.length > 0) return text;
 
   return undefined;
 }

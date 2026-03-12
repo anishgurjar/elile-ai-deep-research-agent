@@ -3,16 +3,25 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export const auth = new Auth();
 
-const CLERK_FRONTEND_API = process.env.CLERK_FRONTEND_API;
+let _jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+let _issuer: string | null = null;
 
-if (!CLERK_FRONTEND_API) {
-  throw new Error("Missing required environment variable: CLERK_FRONTEND_API");
+function getClerkVerifier(): { jwks: ReturnType<typeof createRemoteJWKSet>; issuer: string } {
+  if (_jwks && _issuer) return { jwks: _jwks, issuer: _issuer };
+
+  const clerkFrontendApi = process.env.CLERK_FRONTEND_API;
+  if (!clerkFrontendApi) {
+    throw new Error("Missing required environment variable: CLERK_FRONTEND_API");
+  }
+
+  const clerkHost = clerkFrontendApi.replace(/^https?:\/\//, "");
+  const jwksUrl = `https://${clerkHost}/.well-known/jwks.json`;
+  const issuer = `https://${clerkHost}`;
+
+  _issuer = issuer;
+  _jwks = createRemoteJWKSet(new URL(jwksUrl));
+  return { jwks: _jwks, issuer: _issuer };
 }
-
-const clerkHost = CLERK_FRONTEND_API.replace(/^https?:\/\//, "");
-const JWKS_URL = `https://${clerkHost}/.well-known/jwks.json`;
-const CLERK_ISSUER = `https://${clerkHost}`;
-const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
 auth.authenticate(async (request: Request) => {
   const authHeader = request.headers.get("authorization");
@@ -24,7 +33,8 @@ auth.authenticate(async (request: Request) => {
   const token = authHeader.substring(7); // Remove "Bearer " prefix
 
   try {
-    const { payload } = await jwtVerify(token, JWKS, { issuer: CLERK_ISSUER });
+    const { jwks, issuer } = getClerkVerifier();
+    const { payload } = await jwtVerify(token, jwks, { issuer });
 
     const userId = payload.sub;
 

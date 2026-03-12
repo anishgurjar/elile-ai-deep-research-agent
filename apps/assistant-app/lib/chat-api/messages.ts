@@ -50,7 +50,8 @@ function parseSseChunk(rawChunk: string): StreamEvent | null {
       event,
       data: JSON.parse(dataText),
     };
-  } catch {
+  } catch (error) {
+    void error;
     return {
       ...(id ? { id } : {}),
       event,

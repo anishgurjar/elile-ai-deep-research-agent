@@ -97,10 +97,15 @@ export function createReportGeneratorTool(options: {
       };
 
       let draft: ReportGeneratorDraft | null = null;
+      let parseError: string | undefined;
       try {
         draft = ReportGeneratorDraftSchema.parse(JSON.parse(cleaned));
-      } catch {
+      } catch (error) {
         // Ignore — we fall back below.
+        parseError =
+          error && typeof error === "object" && "message" in error
+            ? String((error as { message?: unknown }).message)
+            : String(error);
       }
 
       // Ensure the model didn't drop facts: if it did, prefer deterministic output.
@@ -123,6 +128,7 @@ export function createReportGeneratorTool(options: {
           subject: input.subject,
           parsedResearchCount: parsedResults.length,
           usedFallbackDraft: !looksComplete,
+          ...(parseError ? { parse_error: parseError } : {}),
         },
       ] as const;
     },

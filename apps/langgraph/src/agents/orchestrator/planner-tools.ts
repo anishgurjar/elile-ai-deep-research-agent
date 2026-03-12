@@ -29,10 +29,15 @@ export function createPlannerAgentTool(options: {
       const cleaned = stripMarkdownFences(output);
 
       let parsed: z.infer<typeof PlannerToolResultSchema> | null = null;
+      let parseError: string | undefined;
       try {
         parsed = PlannerToolResultSchema.parse(JSON.parse(cleaned));
-      } catch {
+      } catch (error) {
         // Validation failed — return raw output so orchestrator can still use it
+        parseError =
+          error && typeof error === "object" && "message" in error
+            ? String((error as { message?: unknown }).message)
+            : String(error);
       }
 
       return [
@@ -41,6 +46,7 @@ export function createPlannerAgentTool(options: {
           tool: "planner_agent",
           instructions: input.instructions,
           ...(parsed ? { output: parsed } : {}),
+          ...(parseError ? { parse_error: parseError } : {}),
         },
       ] as const;
     },

@@ -12,6 +12,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { markdownComponents } from "@/components/assistant-ui/markdown-text";
 import { parsePlannerToolResult } from "@/lib/planner/parse-planner-tool-result";
+import { log } from "@/lib/log";
 
 interface ToolCallPart {
   type: "tool-call";
@@ -20,6 +21,19 @@ interface ToolCallPart {
   argsText?: string;
   args?: Record<string, unknown>;
   result?: unknown;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isToolCallPart(value: unknown): value is ToolCallPart {
+  if (!isRecord(value)) return false;
+  if (value.type !== "tool-call") return false;
+  return (
+    typeof value.toolCallId === "string" &&
+    typeof value.toolName === "string"
+  );
 }
 
 function getDocNameFromSlug(slug: string): string {
@@ -35,8 +49,15 @@ function extractDocNames(calls: ToolCallPart[]): string[] {
     if (!args && call.argsText) {
       try {
         args = JSON.parse(call.argsText);
-      } catch {
-        // ignore invalid JSON
+      } catch (error) {
+        log.debug("Invalid JSON in tool argsText; skipping doc slug extraction", {
+          toolCallId: call.toolCallId,
+          toolName: call.toolName,
+          error:
+            error && typeof error === "object" && "message" in error
+              ? String((error as { message?: unknown }).message)
+              : String(error),
+        });
       }
     }
 
@@ -63,7 +84,13 @@ const formatArgs = (argsText: string): React.ReactElement => {
         ))}
       </ul>
     );
-  } catch {
+  } catch (error) {
+    log.debug("Failed to parse tool args as JSON; rendering raw text", {
+      error:
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : String(error),
+    });
     return <pre className="whitespace-pre-wrap">{argsText}</pre>;
   }
 };
@@ -76,8 +103,13 @@ function extractInstructions(argsText?: string): string | null {
     if (typeof instructions === "string" && instructions.trim().length > 0) {
       return instructions.trim();
     }
-  } catch {
-    // ignore invalid JSON
+  } catch (error) {
+    log.debug("Invalid JSON in tool argsText; skipping instruction extraction", {
+      error:
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : String(error),
+    });
   }
   return null;
 }
@@ -92,7 +124,8 @@ function resultToString(result: unknown): string {
   if (result == null) return "";
   try {
     return JSON.stringify(result, null, 2);
-  } catch {
+  } catch (error) {
+    void error;
     return String(result);
   }
 }
@@ -335,11 +368,10 @@ export const ToolFallback: ToolCallMessagePartComponent = ({
   const content = useMessage((m) => m.content);
 
   const { isFirst, allCalls } = useMemo(() => {
-    const toolCalls = (content as unknown as Array<{ type: string }>).filter(
-      (part): part is ToolCallPart =>
-        part.type === "tool-call" &&
-        (part as ToolCallPart).toolName === toolName,
-    );
+    const parts = Array.isArray(content) ? content : [];
+    const toolCalls = parts
+      .filter(isToolCallPart)
+      .filter((part) => part.toolName === toolName);
 
     const firstCall = toolCalls[0];
     return {

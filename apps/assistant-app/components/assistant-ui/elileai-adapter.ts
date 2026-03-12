@@ -11,6 +11,7 @@ import {
   searchThreads,
   updateThreadMetadata,
 } from "@/lib/chatApi";
+import { log } from "@/lib/log";
 import { createAssistantStream } from "assistant-stream";
 
 export function getAppendText(msg: AppendMessage) {
@@ -35,7 +36,13 @@ async function generateTitleFromMessage(message: string): Promise<string> {
 
     const data = await response.json();
     return data.title || "New Conversation";
-  } catch {
+  } catch (error) {
+    log.warn("Title generation failed; falling back to default title", {
+      error:
+        error && typeof error === "object" && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : String(error),
+    });
     return "New Conversation";
   }
 }
@@ -71,21 +78,24 @@ export const ElileaiThreadListAdapter: RemoteThreadListAdapter = {
     return { remoteId: thread.thread_id, externalId: thread.thread_id };
   },
   async rename(_remoteId, _title) {
-    void _remoteId;
-    void _title;
-    //implement later
+    throw new Error(
+      "Not implemented: rename threads. Take-home focus is the deep research agent; thread management polish is intentionally deferred.",
+    );
   },
   async archive(_remoteId) {
-    void _remoteId;
-    //implement later
+    throw new Error(
+      "Not implemented: archive threads. Take-home focus is the deep research agent; thread management polish is intentionally deferred.",
+    );
   },
   async unarchive(_remoteId) {
-    void _remoteId;
-    //implement later
+    throw new Error(
+      "Not implemented: unarchive threads. Take-home focus is the deep research agent; thread management polish is intentionally deferred.",
+    );
   },
   async delete(_remoteId) {
-    void _remoteId;
-    //implement later
+    throw new Error(
+      "Not implemented: delete threads. Take-home focus is the deep research agent; thread management polish is intentionally deferred.",
+    );
   },
   async generateTitle(remoteId, messages) {
     return createAssistantStream(async (controller) => {
@@ -101,8 +111,14 @@ export const ElileaiThreadListAdapter: RemoteThreadListAdapter = {
         const title = await generateTitleFromMessage(messageText);
         try {
           await updateThreadMetadata(remoteId, { title });
-        } catch {
-          // Silently handle metadata update errors
+        } catch (error) {
+          log.warn("Failed to persist generated title; continuing anyway", {
+            threadId: remoteId,
+            error:
+              error && typeof error === "object" && "message" in error
+                ? String((error as { message?: unknown }).message)
+                : String(error),
+          });
         }
         controller.appendText(title);
       } else {

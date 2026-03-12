@@ -2,18 +2,19 @@ import * as ls from "langsmith/vitest";
 import { expect, test } from "vitest";
 import { Client } from "langsmith";
 import { randomUUID } from "node:crypto";
+import { createLogger } from "@elileai/logger";
 
 import { graph as orchestratorAgent } from "../graph/graph";
 
-import { createExperimentNameUTC } from "../../../test-utils/cloud_evalulation_test_utilities/experiment";
-import { getLastMessageText } from "../../../test-utils/cloud_evalulation_test_utilities/messages";
+import { createExperimentNameUTC } from "../../../test-utils/cloud_evaluation_test_utilities/experiment";
+import { getLastMessageText } from "../../../test-utils/cloud_evaluation_test_utilities/messages";
 import {
   CORRECTNESS_KEY,
   evaluateCorrectness,
 } from "../../../shared_evaluators/correctness-evaluator/evaluator";
 import { CloudLangsmithClient } from "../../../integrations/langsmith/cloud_langsmith_client";
-import { CloudLangsmithTestDatasetFactory } from "../../../test-utils/cloud_evalulation_test_utilities/test_factories/cloud-langsmith-test-dataset-factory";
-import { TestDatasetName } from "../../../test-utils/cloud_evalulation_test_utilities/test_factories/cloud-langsmith-test-dataset-registry";
+import { CloudLangsmithTestDatasetFactory } from "../../../test-utils/cloud_evaluation_test_utilities/test_factories/cloud-langsmith-test-dataset-factory";
+import { TestDatasetName } from "../../../test-utils/cloud_evaluation_test_utilities/test_factories/cloud-langsmith-test-dataset-registry";
 
 const CORRECTNESS_THRESHOLD = Number(
   process.env.CORRECTNESS_THRESHOLD ?? "0.75",
@@ -26,6 +27,7 @@ const EXPERIMENT_NAME = createExperimentNameUTC(
 const internalClient = new Client();
 const langsmithClient = new CloudLangsmithClient();
 const examplesFactory = new CloudLangsmithTestDatasetFactory(langsmithClient);
+const logger = createLogger("langgraph").child("cloud-evaluation-tests");
 
 const exampleIdsForEvaluation = (() => {
   const single = process.env.CLOUD_EXPERIMENT_EXAMPLE_ID;
@@ -109,11 +111,12 @@ ls.describe(
 
         const avg = scores.reduce((sum, s) => sum + s, 0) / scores.length;
 
-        console.log(
-          `[GATE] ${CORRECTNESS_KEY} avg=${(avg * 100).toFixed(
-            1,
-          )}% threshold=${(CORRECTNESS_THRESHOLD * 100).toFixed(0)}%`,
-        );
+        logger.info("Correctness gate", {
+          gate: CORRECTNESS_KEY,
+          avg: Number((avg * 100).toFixed(1)),
+          threshold: Number((CORRECTNESS_THRESHOLD * 100).toFixed(0)),
+          samples: scores.length,
+        });
 
         expect(avg).toBeGreaterThanOrEqual(CORRECTNESS_THRESHOLD);
       } finally {
