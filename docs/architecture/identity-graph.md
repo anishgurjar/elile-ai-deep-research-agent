@@ -24,9 +24,9 @@ See `infrastructure/README.md` for:
 
 ```mermaid
 flowchart LR
-  O[Orchestrator] --> R[identity_graph_read<br/>read-only]
-  R --> N[(Neo4j)]
-  O --> I[identity_graph_ingest<br/>write]
+  O[Orchestrator] --> R["identity_graph_read\nread-only"]
+  R --> N[Neo4j]
+  O --> I["identity_graph_ingest\nwrite"]
   I --> N
 ```
 
