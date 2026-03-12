@@ -13,7 +13,7 @@ The monorepo is an **Nx TypeScript workspace** with:
 - `apps/langgraph`: LangGraph backend (orchestrator + tools)
 - `packages/*`: shared libraries (logger, test utilities)
 
-## Quickstart (reviewer-friendly)
+## Quickstart
 
 ### Prerequisites
 - Node.js 20+
@@ -63,16 +63,16 @@ npx nx run langgraph:test:int
 
 ```mermaid
 flowchart LR
-  U[User] --> UI[assistant-app<br/>(Next.js)]
-  UI --> API[Internal API routes<br/>/api/*]
-  API -->|SSE/HTTP| LG[langgraph<br/>(LangGraph orchestrator)]
+  U[User] --> UI["assistant-app\nNext.js"]
+  UI --> API["Internal API routes\n/api"]
+  API -->|SSE/HTTP| LG["langgraph\nLangGraph orchestrator"]
 
-  LG -->|identity read/write| N4J[(Neo4j<br/>Identity Graph)]
-  LG -->|state/checkpoints| PG[(Postgres)]
+  LG -->|identity read/write| N4J["Neo4j\nIdentity Graph"]
+  LG -->|state checkpoints| PG["Postgres\nLangGraph state"]
 
   LG -->|LLM calls| AN[Anthropic]
-  LG -->|LLM calls + web search| OA[OpenAI]
-  LG -->|optional traces/evals| LS[(LangSmith)]
+  LG -->|LLM calls and web search| OA[OpenAI]
+  LG -->|optional traces/evals| LS[LangSmith]
 ```
 
 ### Deep research flow (planner → graph → sub-agents → report)
@@ -122,16 +122,16 @@ sequenceDiagram
 
 ```mermaid
 flowchart TB
-  Q[User question] --> P[planner_agent<br/>produces seed_scopes]
-  P -->|3–4 scopes| R1[research_agent<br/>scope A]
-  P -->|3–4 scopes| R2[research_agent<br/>scope B]
-  P -->|3–4 scopes| R3[research_agent<br/>scope C]
+  Q[User question] --> P["planner_agent\nproduces seed_scopes"]
+  P -->|3–4 scopes| R1["research_agent\nscope A"]
+  P -->|3–4 scopes| R2["research_agent\nscope B"]
+  P -->|3–4 scopes| R3["research_agent\nscope C"]
 
-  R1 --> F[Findings (structured JSON)]
+  R1 --> F["Findings\nstructured JSON"]
   R2 --> F
   R3 --> F
 
-  F --> D[De-dupe + score facts<br/>(deterministic)]
+  F --> D["De-dupe and score facts\ndeterministic"]
   D --> G[identity_graph_ingest]
   D --> RG[report_generator]
   RG --> OUT[Final markdown report]
